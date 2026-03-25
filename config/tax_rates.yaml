@@ -1,0 +1,7 @@
+# CELINE ROI — Tax rates
+# Source: Normativa vigente, March 2026
+# Last updated: 2026-03-25
+
+ires: 0.24                   # 24% national corporate tax
+irap: 0.039                  # 3.9% regional tax (range: 2.68-4.82% by region)
+iva_impianto: 0.10           # 10% reduced VAT on PV systems (fully recoverable)

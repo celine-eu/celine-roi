@@ -1,0 +1,18 @@
+# CELINE ROI — Default parameters
+# Source: IEA PVPS Task 13, IRENA, sector practice (March 2026)
+# Update this file when benchmarks change. Never hardcode in engine code.
+
+degradation: 0.0045          # 0.45%/year (range: 0.3-0.6%)
+lid: 0.015                   # 1.5% first year (range: 0-2.5%, depends on cell tech)
+performance_ratio: 0.81      # Reference only — already included in PVGIS estimate
+retail_price: 0.25           # EUR/kWh electricity cost from grid
+energy_inflation: 0.03       # 3%/year (range: 1-5%)
+general_inflation: 0.02      # 2%/year (range: 1-4%, BCE target)
+om_per_kwp: 12               # EUR/kWp/year (range: 8-18)
+insurance_rate: 0.0035       # 0.35% of CAPEX/year (range: 0.2-0.5%)
+wacc: 0.055                  # 5.5% (range: 3-9%, typical IT SME)
+useful_life: 25              # years (range: 20-30)
+inverter_replacement_year: 12 # year of operation (range: 10-15)
+# Inverter cost is computed by power law in engines/finance.py (not a config value)
+# Formula: 180 * kWp^0.82, floor 1200 EUR, cap 120000 EUR
+sharing_ratio: 0.55          # CER sharing ratio (range: 0.40-0.70)
