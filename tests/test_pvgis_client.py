@@ -1,11 +1,12 @@
 """Tests for PVGIS production data fetching."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import numpy as np
 import pytest
 
-from celine_roi.models import SystemInput
-from celine_roi.pvgis_client import fetch_production
+from celine.roi.models import SystemInput
+from celine.roi.pvgis_client import fetch_production
 
 
 @pytest.fixture()
@@ -29,27 +30,32 @@ def input_without_override() -> SystemInput:
     )
 
 
+_MOCK_PVGIS = np.array(
+    [2000, 2500, 3500, 4500, 5500, 6000, 6000, 5500, 4000, 3000, 2000, 1500], dtype=float
+)
+
+
 class TestFetchProductionSynthetic:
     """Tests for manual override / synthetic fallback path."""
 
-    def test_returns_synthetic_source(self, input_with_override: SystemInput) -> None:
-        result = fetch_production(input_with_override)
+    async def test_returns_synthetic_source(self, input_with_override: SystemInput) -> None:
+        result = await fetch_production(input_with_override)
         assert result.source == "synthetic"
 
-    def test_annual_matches_override(self, input_with_override: SystemInput) -> None:
-        result = fetch_production(input_with_override)
+    async def test_annual_matches_override(self, input_with_override: SystemInput) -> None:
+        result = await fetch_production(input_with_override)
         assert result.annual_production_kwh == 49500.0
 
-    def test_monthly_sums_to_annual(self, input_with_override: SystemInput) -> None:
-        result = fetch_production(input_with_override)
+    async def test_monthly_sums_to_annual(self, input_with_override: SystemInput) -> None:
+        result = await fetch_production(input_with_override)
         assert abs(result.monthly_production_kwh.sum() - 49500.0) < 0.01
 
-    def test_monthly_has_12_elements(self, input_with_override: SystemInput) -> None:
-        result = fetch_production(input_with_override)
+    async def test_monthly_has_12_elements(self, input_with_override: SystemInput) -> None:
+        result = await fetch_production(input_with_override)
         assert len(result.monthly_production_kwh) == 12
 
-    def test_summer_higher_than_winter(self, input_with_override: SystemInput) -> None:
-        result = fetch_production(input_with_override)
+    async def test_summer_higher_than_winter(self, input_with_override: SystemInput) -> None:
+        result = await fetch_production(input_with_override)
         monthly = result.monthly_production_kwh
         assert monthly[5] > monthly[11]  # June > December
 
@@ -57,22 +63,107 @@ class TestFetchProductionSynthetic:
 class TestFetchProductionPVGIS:
     """Tests for PVGIS API path (mocked)."""
 
-    def test_pvgis_api_failure_raises_error(
+    async def test_pvgis_api_failure_raises_error(
         self, input_without_override: SystemInput
     ) -> None:
         with patch(
-            "celine_roi.pvgis_client._fetch_pvgis_monthly",
-            side_effect=ConnectionError("PVGIS unreachable")
+            "celine.roi.pvgis_client._fetch_pvgis_monthly",
+            new=AsyncMock(side_effect=ConnectionError("PVGIS unreachable")),
         ):
             with pytest.raises(ConnectionError, match="PVGIS unreachable"):
-                fetch_production(input_without_override)
+                await fetch_production(input_without_override)
 
-    def test_does_not_silently_fallback(
+    async def test_does_not_silently_fallback(
         self, input_without_override: SystemInput
     ) -> None:
         with patch(
-            "celine_roi.pvgis_client._fetch_pvgis_monthly",
-            side_effect=ConnectionError("fail")
+            "celine.roi.pvgis_client._fetch_pvgis_monthly",
+            new=AsyncMock(side_effect=ConnectionError("fail")),
         ):
             with pytest.raises(ConnectionError):
-                fetch_production(input_without_override)
+                await fetch_production(input_without_override)
+
+
+_WKT_LAVARONE = (
+    "POLYGON((11.266 45.933, 11.266 45.9332, 11.2664 45.9332, 11.2664 45.933, 11.266 45.933))"
+)
+
+
+class TestFetchProductionHybrid:
+    """Tests for hybrid Trentino+PVGIS path."""
+
+    async def test_hybrid_source_when_rooftop_wkt_provided(self) -> None:
+        from celine.roi.trentino_solar import TrentinoSolarResult
+
+        si = SystemInput(
+            kwp=31.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            capex=31400.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            rooftop_wkt=_WKT_LAVARONE,
+        )
+
+        mock_trentino = AsyncMock(return_value=TrentinoSolarResult(
+            area=196.23, nominal_power_kwp=31.40,
+            energy_yield_kwh_kwp=942.77, electrical_output_kwh=29599.37,
+        ))
+        mock_pvgis = AsyncMock(return_value=_MOCK_PVGIS)
+
+        with (
+            patch("celine.roi.pvgis_client.fetch_trentino_solar", mock_trentino),
+            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", mock_pvgis),
+        ):
+            result = await fetch_production(si)
+
+        assert result.source == "trentino+pvgis"
+        assert result.annual_production_kwh == pytest.approx(29599.37)
+        assert len(result.monthly_production_kwh) == 12
+        assert result.monthly_production_kwh.sum() == pytest.approx(29599.37, rel=1e-3)
+        assert result.monthly_production_kwh[5] > result.monthly_production_kwh[11]
+
+    async def test_fallback_to_pvgis_when_trentino_fails(self) -> None:
+        si = SystemInput(
+            kwp=31.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            capex=31400.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            rooftop_wkt=_WKT_LAVARONE,
+        )
+
+        with (
+            patch(
+                "celine.roi.pvgis_client.fetch_trentino_solar",
+                new=AsyncMock(side_effect=ConnectionError("API down")),
+            ),
+            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+        ):
+            result = await fetch_production(si)
+
+        assert result.source == "pvgis"
+
+    async def test_no_hybrid_when_outside_trentino(self) -> None:
+        si = SystemInput(
+            kwp=45.0, latitude=41.9, longitude=12.5, tilt=30.0, azimuth=0.0,
+            capex=45000.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            rooftop_wkt="POLYGON((12.5 41.9, 12.5 41.9002, 12.5004 41.9002, 12.5004 41.9, 12.5 41.9))",
+        )
+
+        with (
+            patch("celine.roi.pvgis_client.fetch_trentino_solar") as mock_trentino,
+            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+        ):
+            result = await fetch_production(si)
+
+        mock_trentino.assert_not_called()
+        assert result.source == "pvgis"
+
+    async def test_no_hybrid_without_rooftop_wkt(self) -> None:
+        si = SystemInput(
+            kwp=45.0, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            capex=45000.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+        )
+
+        with patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)):
+            result = await fetch_production(si)
+
+        assert result.source == "pvgis"

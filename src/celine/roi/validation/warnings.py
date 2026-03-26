@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import numpy_financial as npf
 
-from celine_roi.models import (
+from celine.roi.models import (
     EnergyResult,
     FinanceResult,
     IncentiveResult,

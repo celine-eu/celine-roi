@@ -12,9 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import requests
-
-from celine_roi.models import SystemInput  # noqa: F401  (kept for future use)
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,7 @@ class TrentinoSolarResult:
     electrical_output_kwh: float
 
 
-def fetch_trentino_solar(
+async def fetch_trentino_solar(
     rooftop_wkt: str,
     epsg_code: str = "4326",
 ) -> TrentinoSolarResult:
@@ -63,19 +61,20 @@ def fetch_trentino_solar(
     }
 
     try:
-        response = requests.post(
-            TRENTINO_SOLAR_URL,
-            json=payload,
-            headers={"Accept": "application/json"},
-            timeout=30,
-        )
-        response.raise_for_status()
-    except requests.ConnectionError as exc:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                TRENTINO_SOLAR_URL,
+                json=payload,
+                headers={"Accept": "application/json"},
+            )
+            response.raise_for_status()
+            data = response.json()
+    except httpx.ConnectError as exc:
         raise ConnectionError(f"Trentino Solar API unreachable: {exc}") from exc
-    except requests.HTTPError as exc:
-        raise ConnectionError(f"Trentino Solar API error: {response.status_code}") from exc
-
-    data = response.json()
+    except httpx.HTTPStatusError as exc:
+        raise ConnectionError(
+            f"Trentino Solar API error: {exc.response.status_code}"
+        ) from exc
 
     if not data.get("isValid", False):
         error_msg = data.get("userMessage", "Unknown error")

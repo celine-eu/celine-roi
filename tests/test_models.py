@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from celine_roi.models import (
+from celine.roi.models import (
     EnergyResult,
     ProductionData,
     SystemInput,
