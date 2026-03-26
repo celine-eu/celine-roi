@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from celine_roi.config_loader import load_config
+from celine.roi.config_loader import load_config
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 

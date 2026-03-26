@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from celine_roi.models import EnergyResult, ProductionData, SystemInput
+from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 logger = logging.getLogger(__name__)
 

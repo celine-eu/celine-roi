@@ -2,14 +2,14 @@
 
 import pytest
 
-from celine_roi.engines.energy import compute_energy
-from celine_roi.engines.finance import compute_finance
-from celine_roi.engines.incentives import compute_incentives
-from celine_roi.models import (
+from celine.roi.engines.energy import compute_energy
+from celine.roi.engines.finance import compute_finance
+from celine.roi.engines.incentives import compute_incentives
+from celine.roi.models import (
     ProductionData,
     SystemInput,
 )
-from celine_roi.validation.warnings import validate_model
+from celine.roi.validation.warnings import validate_model
 
 
 @pytest.fixture()
@@ -45,7 +45,7 @@ class TestValidateModelRegulatory:
             regime="SSP", equity_fraction=1.0, loan_rate=0.0,
             loan_duration_years=0, annual_production_kwh=49500.0,
         )
-        from celine_roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 49500.0 * SOLAR_MONTHLY_FRACTIONS
         pd = ProductionData(
             monthly_production_kwh=monthly,

@@ -11,9 +11,9 @@ Reference values from design spec (year 1, after LID):
 
 import pytest
 
-from celine_roi.engines.energy import compute_energy
-from celine_roi.engines.incentives import compute_incentives
-from celine_roi.models import IncentiveResult, ProductionData, SystemInput
+from celine.roi.engines.energy import compute_energy
+from celine.roi.engines.incentives import compute_incentives
+from celine.roi.models import IncentiveResult, ProductionData, SystemInput
 
 
 @pytest.fixture()

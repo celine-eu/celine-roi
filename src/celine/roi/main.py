@@ -6,21 +6,20 @@ Chains all engines: PVGIS → Energy → Incentives → Finance → Validation.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any
 
-from celine_roi.engines.energy import compute_energy
-from celine_roi.engines.finance import compute_finance
-from celine_roi.engines.incentives import compute_incentives
-from dataclasses import replace
-
-from celine_roi.models import ScenarioResult, SystemInput
-from celine_roi.pvgis_client import fetch_production
-from celine_roi.validation.warnings import validate_model
+from celine.roi.engines.energy import compute_energy
+from celine.roi.engines.finance import compute_finance
+from celine.roi.engines.incentives import compute_incentives
+from celine.roi.models import ScenarioResult, SystemInput
+from celine.roi.pvgis_client import fetch_production
+from celine.roi.validation.warnings import validate_model
 
 logger = logging.getLogger(__name__)
 
 
-def run_scenario(
+async def run_scenario(
     system_input: SystemInput,
     config: dict[str, Any],
 ) -> ScenarioResult:
@@ -35,7 +34,7 @@ def run_scenario(
     """
     logger.info("Starting scenario: %s, %.1f kWp", system_input.location, system_input.kwp)
 
-    production_data = fetch_production(system_input)
+    production_data = await fetch_production(system_input)
     logger.info(
         "Production: %.0f kWh/year (source: %s)",
         production_data.annual_production_kwh,

@@ -11,8 +11,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from celine_roi.config_loader import load_config
-from celine_roi.models import ProductionData, SystemInput
+from celine.roi.config_loader import load_config
+from celine.roi.models import ProductionData, SystemInput
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 

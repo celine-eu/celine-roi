@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from celine_roi.models import ScenarioResult
+from celine.roi.models import ScenarioResult
 
 
 def format_report(
@@ -160,7 +160,7 @@ def format_report(
         inflation_factor = (1.0 + general_inflation) ** (year - 1)
         om_ins = (om_base + insurance_base) * inflation_factor
         if year == config["inverter_replacement_year"]:
-            from celine_roi.engines.finance import estimate_inverter_cost
+            from celine.roi.engines.finance import estimate_inverter_cost
 
             om_ins += estimate_inverter_cost(si.kwp)
 
