@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import sys
 from pathlib import Path
 
-from celine_roi.config_loader import load_config
-from celine_roi.main import run_scenario
-from celine_roi.models import SystemInput
-from celine_roi.report import format_report
+from celine.roi.config_loader import load_config
+from celine.roi.main import run_scenario
+from celine.roi.models import SystemInput
+from celine.roi.report import format_report
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -142,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         rooftop_wkt=args.rooftop_wkt,
     )
 
-    result = run_scenario(system_input, config)
+    result = asyncio.run(run_scenario(system_input, config))
 
     output = format_report(result, config)
 

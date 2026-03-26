@@ -6,10 +6,10 @@ Reference case: 45 kWp, 45,000 EUR CAPEX, 100% equity, 5.5% WACC.
 import numpy_financial as npf
 import pytest
 
-from celine_roi.engines.energy import compute_energy
-from celine_roi.engines.finance import compute_finance
-from celine_roi.engines.incentives import compute_incentives
-from celine_roi.models import FinanceResult, ProductionData, SystemInput
+from celine.roi.engines.energy import compute_energy
+from celine.roi.engines.finance import compute_finance
+from celine.roi.engines.incentives import compute_incentives
+from celine.roi.models import FinanceResult, ProductionData, SystemInput
 
 
 @pytest.fixture()
@@ -100,9 +100,9 @@ class TestFinanceWithLoan:
             regime="RID_CER", equity_fraction=0.3, loan_rate=0.05,
             loan_duration_years=15, annual_production_kwh=49500.0,
         )
-        from celine_roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 49500.0 * SOLAR_MONTHLY_FRACTIONS
-        from celine_roi.models import ProductionData
+        from celine.roi.models import ProductionData
         pd = ProductionData(
             monthly_production_kwh=monthly,
             annual_production_kwh=49500.0,
@@ -120,9 +120,9 @@ class TestFinanceWithLoan:
             regime="RID_CER", equity_fraction=0.3, loan_rate=0.05,
             loan_duration_years=15, annual_production_kwh=49500.0,
         )
-        from celine_roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 49500.0 * SOLAR_MONTHLY_FRACTIONS
-        from celine_roi.models import ProductionData
+        from celine.roi.models import ProductionData
         pd = ProductionData(
             monthly_production_kwh=monthly,
             annual_production_kwh=49500.0,

@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import numpy_financial as npf
 
-from celine_roi.models import FinanceResult, IncentiveResult, SystemInput
+from celine.roi.models import FinanceResult, IncentiveResult, SystemInput
 
 logger = logging.getLogger(__name__)
 

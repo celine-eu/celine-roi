@@ -15,8 +15,8 @@ Post-LID values (35,256.58 / 13,500.92) are tested in test_incentives.py.
 import numpy as np
 import pytest
 
-from celine_roi.engines.energy import compute_energy
-from celine_roi.models import EnergyResult, ProductionData, SystemInput
+from celine.roi.engines.energy import compute_energy
+from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 
 class TestComputeEnergy:
@@ -142,7 +142,7 @@ class TestComputeEnergyEdgeCases:
             regime="RID", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
             annual_production_kwh=10000.0,
         )
-        from celine_roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 10000.0 * SOLAR_MONTHLY_FRACTIONS
         pd = ProductionData(
             monthly_production_kwh=monthly,
@@ -162,7 +162,7 @@ class TestComputeEnergyEdgeCases:
             regime="RID", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
             annual_production_kwh=5000.0,
         )
-        from celine_roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 5000.0 * SOLAR_MONTHLY_FRACTIONS
         pd = ProductionData(
             monthly_production_kwh=monthly,

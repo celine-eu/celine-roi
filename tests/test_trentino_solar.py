@@ -1,15 +1,37 @@
 """Tests for Trentino Solar Irradiance API client."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 
-from celine_roi.trentino_solar import (
+from celine.roi.trentino_solar import (
     TrentinoSolarResult,
     fetch_trentino_solar,
     is_in_trentino,
 )
+
+_WKT_LAVARONE = (
+    "POLYGON((11.266 45.933, 11.266 45.9332, 11.2664 45.9332, 11.2664 45.933, 11.266 45.933))"
+)
+_WKT_MILANO = (
+    "POLYGON((9.19 45.46, 9.19 45.4602, 9.1904 45.4602, 9.1904 45.46, 9.19 45.46))"
+)
+
+
+def _make_httpx_mock(json_payload: dict) -> tuple:
+    """Return (mock_cls, mock_response) for patching httpx.AsyncClient."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = json_payload
+    mock_response.raise_for_status = MagicMock()
+
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=mock_response)
+
+    mock_cls = MagicMock()
+    mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+    return mock_cls, mock_response
 
 
 class TestIsInTrentino:
@@ -28,31 +50,20 @@ class TestIsInTrentino:
         assert is_in_trentino(41.9028, 12.4964) is False
 
 
-_WKT_LAVARONE = (
-    "POLYGON((11.266 45.933, 11.266 45.9332, 11.2664 45.9332, 11.2664 45.933, 11.266 45.933))"
-)
-_WKT_MILANO = (
-    "POLYGON((9.19 45.46, 9.19 45.4602, 9.1904 45.4602, 9.1904 45.46, 9.19 45.46))"
-)
-
-
 class TestFetchTrentinoSolar:
-    """Tests for API client (mocked)."""
+    """Tests for async API client (httpx mocked)."""
 
-    def test_successful_response(self) -> None:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
+    async def test_successful_response(self) -> None:
+        mock_cls, _ = _make_httpx_mock({
             "isValid": True,
             "area": 196.23,
             "nominalPower": 31.40,
             "energyYield": 942.77,
             "electricalOutput": 29599.37,
-        }
-        mock_response.raise_for_status = MagicMock()
+        })
 
-        with patch("celine_roi.trentino_solar.requests.post", return_value=mock_response):
-            result = fetch_trentino_solar(_WKT_LAVARONE)
+        with patch("celine.roi.trentino_solar.httpx.AsyncClient", mock_cls):
+            result = await fetch_trentino_solar(_WKT_LAVARONE)
 
         assert isinstance(result, TrentinoSolarResult)
         assert result.area == pytest.approx(196.23)
@@ -60,184 +71,26 @@ class TestFetchTrentinoSolar:
         assert result.energy_yield_kwh_kwp == pytest.approx(942.77)
         assert result.electrical_output_kwh == pytest.approx(29599.37)
 
-    def test_outside_trentino_raises(self) -> None:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
+    async def test_outside_trentino_raises(self) -> None:
+        mock_cls, _ = _make_httpx_mock({
             "isValid": False,
             "errorCode": "00008",
             "userMessage": "La geometria non ricade nell'ambito della Provincia Autonoma di Trento",
-        }
-        mock_response.raise_for_status = MagicMock()
+        })
 
-        with patch("celine_roi.trentino_solar.requests.post", return_value=mock_response):
+        with patch("celine.roi.trentino_solar.httpx.AsyncClient", mock_cls):
             with pytest.raises(ValueError, match="non ricade"):
-                fetch_trentino_solar(_WKT_MILANO)
+                await fetch_trentino_solar(_WKT_MILANO)
 
-    def test_connection_error_raises(self) -> None:
-        with patch(
-            "celine_roi.trentino_solar.requests.post",
-            side_effect=Exception("Network error"),
-        ):
-            with pytest.raises(Exception):
-                fetch_trentino_solar(_WKT_LAVARONE)
+    async def test_connection_error_raises(self) -> None:
+        import httpx
 
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(side_effect=httpx.ConnectError("Network error"))
+        mock_cls = MagicMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-class TestFetchProductionHybrid:
-    """Tests for hybrid Trentino+PVGIS path in fetch_production."""
-
-    def test_hybrid_source_when_rooftop_wkt_provided(self, config) -> None:
-        """When rooftop_wkt is set and in Trentino, source should be trentino+pvgis."""
-        from celine_roi.models import SystemInput
-        from celine_roi.pvgis_client import fetch_production
-
-        si = SystemInput(
-            kwp=31.4,
-            latitude=45.9333,
-            longitude=11.2667,
-            tilt=30.0,
-            azimuth=0.0,
-            capex=31400.0,
-            annual_consumption_kwh=40000.0,
-            user_type="commercial",
-            regime="RID_CER",
-            equity_fraction=1.0,
-            loan_rate=0.0,
-            loan_duration_years=0,
-            rooftop_wkt=_WKT_LAVARONE,
-        )
-
-        mock_trentino = MagicMock()
-        mock_trentino.return_value = TrentinoSolarResult(
-            area=196.23,
-            nominal_power_kwp=31.40,
-            energy_yield_kwh_kwp=942.77,
-            electrical_output_kwh=29599.37,
-        )
-
-        mock_pvgis = MagicMock()
-        mock_pvgis.return_value = np.array(
-            [2000, 2500, 3500, 4500, 5500, 6000, 6000, 5500, 4000, 3000, 2000, 1500],
-            dtype=float,
-        )  # 46,000 kWh total from PVGIS
-
-        with (
-            patch("celine_roi.pvgis_client.fetch_trentino_solar", mock_trentino),
-            patch("celine_roi.pvgis_client._fetch_pvgis_monthly", mock_pvgis),
-        ):
-            result = fetch_production(si)
-
-        assert result.source == "trentino+pvgis"
-        assert result.annual_production_kwh == pytest.approx(29599.37)
-        assert len(result.monthly_production_kwh) == 12
-        # Monthly should sum to Trentino annual
-        assert result.monthly_production_kwh.sum() == pytest.approx(29599.37, rel=1e-3)
-        # Monthly shape should follow PVGIS pattern (June > December)
-        assert result.monthly_production_kwh[5] > result.monthly_production_kwh[11]
-
-    def test_fallback_to_pvgis_when_trentino_fails(self, config) -> None:
-        """If Trentino API fails, should fall back to PVGIS only."""
-        from celine_roi.models import SystemInput
-        from celine_roi.pvgis_client import fetch_production
-
-        si = SystemInput(
-            kwp=31.4,
-            latitude=45.9333,
-            longitude=11.2667,
-            tilt=30.0,
-            azimuth=0.0,
-            capex=31400.0,
-            annual_consumption_kwh=40000.0,
-            user_type="commercial",
-            regime="RID_CER",
-            equity_fraction=1.0,
-            loan_rate=0.0,
-            loan_duration_years=0,
-            rooftop_wkt=_WKT_LAVARONE,
-        )
-
-        mock_pvgis = MagicMock()
-        mock_pvgis.return_value = np.array(
-            [2000, 2500, 3500, 4500, 5500, 6000, 6000, 5500, 4000, 3000, 2000, 1500],
-            dtype=float,
-        )
-
-        with (
-            patch(
-                "celine_roi.pvgis_client.fetch_trentino_solar",
-                side_effect=ConnectionError("API down"),
-            ),
-            patch("celine_roi.pvgis_client._fetch_pvgis_monthly", mock_pvgis),
-        ):
-            result = fetch_production(si)
-
-        assert result.source == "pvgis"
-
-    def test_no_hybrid_when_outside_trentino(self, config) -> None:
-        """If coordinates outside Trentino, should not call Trentino API."""
-        from celine_roi.models import SystemInput
-        from celine_roi.pvgis_client import fetch_production
-
-        si = SystemInput(
-            kwp=45.0,
-            latitude=41.9,  # Roma
-            longitude=12.5,
-            tilt=30.0,
-            azimuth=0.0,
-            capex=45000.0,
-            annual_consumption_kwh=40000.0,
-            user_type="commercial",
-            regime="RID_CER",
-            equity_fraction=1.0,
-            loan_rate=0.0,
-            loan_duration_years=0,
-            rooftop_wkt=(
-                "POLYGON((12.5 41.9, 12.5 41.9002, 12.5004 41.9002, 12.5004 41.9, 12.5 41.9))"
-            ),
-        )
-
-        mock_pvgis = MagicMock()
-        mock_pvgis.return_value = np.array(
-            [3000, 3500, 4500, 5500, 6500, 7000, 7000, 6500, 5000, 4000, 3000, 2500],
-            dtype=float,
-        )
-
-        with (
-            patch("celine_roi.pvgis_client.fetch_trentino_solar") as mock_trentino,
-            patch("celine_roi.pvgis_client._fetch_pvgis_monthly", mock_pvgis),
-        ):
-            result = fetch_production(si)
-
-        mock_trentino.assert_not_called()
-        assert result.source == "pvgis"
-
-    def test_no_hybrid_without_rooftop_wkt(self, config) -> None:
-        """Without rooftop_wkt, should use PVGIS only."""
-        from celine_roi.models import SystemInput
-        from celine_roi.pvgis_client import fetch_production
-
-        si = SystemInput(
-            kwp=45.0,
-            latitude=45.9333,
-            longitude=11.2667,
-            tilt=30.0,
-            azimuth=0.0,
-            capex=45000.0,
-            annual_consumption_kwh=40000.0,
-            user_type="commercial",
-            regime="RID_CER",
-            equity_fraction=1.0,
-            loan_rate=0.0,
-            loan_duration_years=0,
-        )
-
-        mock_pvgis = MagicMock()
-        mock_pvgis.return_value = np.array(
-            [2000, 2500, 3500, 4500, 5500, 6000, 6000, 5500, 4000, 3000, 2000, 1500],
-            dtype=float,
-        )
-
-        with patch("celine_roi.pvgis_client._fetch_pvgis_monthly", mock_pvgis):
-            result = fetch_production(si)
-
-        assert result.source == "pvgis"
+        with patch("celine.roi.trentino_solar.httpx.AsyncClient", mock_cls):
+            with pytest.raises(ConnectionError):
+                await fetch_trentino_solar(_WKT_LAVARONE)

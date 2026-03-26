@@ -3,18 +3,26 @@
 Primary path: fetches real monthly production via pvlib's PVGIS integration.
 Fallback path: distributes a user-provided annual total using a synthetic
 solar curve (Trentino 46N latitude approximation).
+
+pvlib has no async interface; the blocking HTTP call is offloaded to the
+default thread pool executor via asyncio.to_thread.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import numpy as np
 
-from celine_roi.models import ProductionData, SystemInput
-from celine_roi.trentino_solar import fetch_trentino_solar, is_in_trentino
+from celine.roi.models import ProductionData, SystemInput
+from celine.roi.trentino_solar import fetch_trentino_solar, is_in_trentino
 
 logger = logging.getLogger(__name__)
+
+# Normalized solar distribution for Trentino (46N latitude)
+_RAW_SOLAR = [0.049, 0.059, 0.078, 0.098, 0.118, 0.127, 0.127, 0.118, 0.088, 0.069, 0.039, 0.029]
+SOLAR_MONTHLY_FRACTIONS: np.ndarray = np.array(_RAW_SOLAR) / sum(_RAW_SOLAR)
 
 
 def detect_epsg(wkt: str) -> str:
@@ -37,19 +45,18 @@ def detect_epsg(wkt: str) -> str:
     max_val = max(abs(float(n)) for n in numbers)
     return "25832" if max_val > 1000 else "4326"
 
-# Normalized solar distribution for Trentino (46N latitude)
-_RAW_SOLAR = [0.049, 0.059, 0.078, 0.098, 0.118, 0.127, 0.127, 0.118, 0.088, 0.069, 0.039, 0.029]
-SOLAR_MONTHLY_FRACTIONS: np.ndarray = np.array(_RAW_SOLAR) / sum(_RAW_SOLAR)
 
-
-def _fetch_pvgis_monthly(
+def _fetch_pvgis_monthly_blocking(
     latitude: float,
     longitude: float,
     tilt: float,
     azimuth: float,
     kwp: float,
 ) -> np.ndarray:
-    """Fetch monthly production from PVGIS API via pvlib.
+    """Fetch monthly production from PVGIS API via pvlib (blocking).
+
+    Called exclusively via asyncio.to_thread — never called directly
+    from async code paths.
 
     Args:
         latitude: Site latitude.
@@ -84,11 +91,26 @@ def _fetch_pvgis_monthly(
     return monthly_avg.values
 
 
-def fetch_production(system_input: SystemInput) -> ProductionData:
+async def _fetch_pvgis_monthly(
+    latitude: float,
+    longitude: float,
+    tilt: float,
+    azimuth: float,
+    kwp: float,
+) -> np.ndarray:
+    """Async wrapper: offloads blocking pvlib call to thread pool."""
+    return await asyncio.to_thread(
+        _fetch_pvgis_monthly_blocking, latitude, longitude, tilt, azimuth, kwp
+    )
+
+
+async def fetch_production(system_input: SystemInput) -> ProductionData:
     """Get monthly PV production data for the given system.
 
     If system_input.annual_production_kwh is set, uses a synthetic solar
-    distribution curve (no API call). Otherwise, fetches real data from PVGIS.
+    distribution curve (no API call). Otherwise fetches real data from PVGIS,
+    optionally combining with the Trentino Solar LIDAR API for shadow-corrected
+    annual totals.
 
     Args:
         system_input: System parameters including location and capacity.
@@ -118,22 +140,17 @@ def fetch_production(system_input: SystemInput) -> ProductionData:
     ):
         try:
             epsg = detect_epsg(system_input.rooftop_wkt)
-            trentino = fetch_trentino_solar(
-                system_input.rooftop_wkt, epsg_code=epsg
-            )
+            trentino = await fetch_trentino_solar(system_input.rooftop_wkt, epsg_code=epsg)
             annual_trentino = trentino.electrical_output_kwh
 
-            # Get PVGIS monthly shape for seasonal distribution
-            # Use Trentino kWp for PVGIS call (user's kwp may be 0 or wrong)
             pvgis_kwp = trentino.nominal_power_kwp
-            pvgis_monthly = _fetch_pvgis_monthly(
+            pvgis_monthly = await _fetch_pvgis_monthly(
                 latitude=system_input.latitude,
                 longitude=system_input.longitude,
                 tilt=system_input.tilt,
                 azimuth=system_input.azimuth,
                 kwp=pvgis_kwp,
             )
-            # Scale PVGIS monthly to match Trentino annual total
             pvgis_annual = float(pvgis_monthly.sum())
             scale_factor = annual_trentino / pvgis_annual
             monthly = pvgis_monthly * scale_factor
@@ -153,17 +170,17 @@ def fetch_production(system_input: SystemInput) -> ProductionData:
                 effective_kwp=trentino.nominal_power_kwp,
             )
         except (ValueError, ConnectionError) as exc:
-            logger.warning(
-                "Trentino Solar API failed, falling back to PVGIS: %s", exc
-            )
-            # Fall through to PVGIS-only path below
+            logger.warning("Trentino Solar API failed, falling back to PVGIS: %s", exc)
 
     logger.info(
         "Fetching PVGIS data for lat=%.4f, lon=%.4f, tilt=%.1f, azimuth=%.1f, kWp=%.1f",
-        system_input.latitude, system_input.longitude,
-        system_input.tilt, system_input.azimuth, system_input.kwp,
+        system_input.latitude,
+        system_input.longitude,
+        system_input.tilt,
+        system_input.azimuth,
+        system_input.kwp,
     )
-    monthly = _fetch_pvgis_monthly(
+    monthly = await _fetch_pvgis_monthly(
         latitude=system_input.latitude,
         longitude=system_input.longitude,
         tilt=system_input.tilt,
