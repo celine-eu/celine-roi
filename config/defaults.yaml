@@ -16,3 +16,6 @@ inverter_replacement_year: 12 # year of operation (range: 10-15)
 # Inverter cost is computed by power law in engines/finance.py (not a config value)
 # Formula: 180 * kWp^0.82, floor 1200 EUR, cap 120000 EUR
 sharing_ratio: 0.55          # CER sharing ratio (range: 0.40-0.70)
+
+# Load profile
+load_profile: "residential_default.json"
