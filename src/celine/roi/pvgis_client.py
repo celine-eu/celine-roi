@@ -67,6 +67,8 @@ def _fetch_pvgis_monthly_blocking(
 
     Returns:
         Tuple of (monthly_12, hourly_8760) numpy arrays in kWh.
+        Both arrays are derived from the same data slice, ensuring
+        monthly.sum() == hourly.sum().
 
     Raises:
         ConnectionError: If the PVGIS API is unreachable.
@@ -84,19 +86,21 @@ def _fetch_pvgis_monthly_blocking(
         loss=19,
         outputformat="json",
     )
-    # pvlib >= 0.15 returns (data, metadata); older versions return 4 values
     data = result[0]
+
+    # Truncate to 8760 rows BEFORE any aggregation so monthly and hourly
+    # are always derived from the same data slice (handles leap-year TMY)
+    if len(data) > 8760:
+        data = data.iloc[:8760]
 
     # Hourly kWh (P is in Watts, each point is 1 hour)
     hourly_kwh = (data["P"] / 1000.0).values
 
-    # PVGIS TMY may have extra hours for leap years — normalize to 8760
-    if len(hourly_kwh) > 8760:
-        hourly_kwh = hourly_kwh[:8760]
-    elif len(hourly_kwh) < 8760:
+    # Pad if shorter than 8760 (shouldn't happen with standard PVGIS TMY)
+    if len(hourly_kwh) < 8760:
         hourly_kwh = np.pad(hourly_kwh, (0, 8760 - len(hourly_kwh)))
 
-    # Monthly aggregation (same as before)
+    # Monthly aggregation from the same truncated data
     monthly_kwh = data["P"].resample("ME").sum() / 1000.0
     monthly_avg = monthly_kwh.groupby(monthly_kwh.index.month).mean()
 
@@ -164,6 +168,9 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
                 kwp=pvgis_kwp,
             )
             pvgis_annual = float(monthly.sum())
+            if pvgis_annual <= 0:
+                logger.warning("PVGIS returned zero annual production, falling back to synthetic")
+                raise ValueError("PVGIS returned zero production")
             scale_factor = annual_trentino / pvgis_annual
             monthly = monthly * scale_factor
             hourly = hourly * scale_factor
