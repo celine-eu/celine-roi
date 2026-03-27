@@ -70,6 +70,10 @@ class ConfigOverrides(BaseModel):
         le=0.10,
         description="CER Cacv component EUR/kWh",
     )
+    load_profile: str | None = Field(
+        default=None,
+        description="Load profile filename (e.g., 'residential_heat_pump.json')",
+    )
 
 
 # ── System input request ───────────────────────────────────────────────────────

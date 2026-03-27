@@ -8,7 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from celine.roi.api.routes import energy, finance, incentives, production, scenario, validate
+from celine.roi.api.routes import capex, compare, energy, finance, incentives, production, scenario, validate
 from celine.roi.config_loader import load_config
 
 # Module-level state populated once per lifespan.
@@ -66,5 +66,7 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
     app.include_router(finance.router, prefix=prefix, tags=["finance"])
     app.include_router(validate.router, prefix=prefix, tags=["validate"])
     app.include_router(scenario.router, prefix=prefix, tags=["scenario"])
+    app.include_router(capex.router, prefix=prefix, tags=["capex"])
+    app.include_router(compare.router, prefix=prefix, tags=["compare"])
 
     return app
