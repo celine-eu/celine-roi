@@ -47,6 +47,7 @@ def compute_incentives(
     rid_tariff: float = config["rid_tariff"]
     cer_tip_tariff: float = config["cer_tip"]
     cer_cacv_tariff: float = config["cer_cacv"]
+    cer_libero_ratio: float = config["cer_libero_ratio"]
 
     capex: float = system_input.capex
     dep_coeff: float = config["depreciation_coeff"]
@@ -68,6 +69,10 @@ def compute_incentives(
     rid_revenue = np.zeros(useful_life)
     cer_tip = np.zeros(useful_life)
     cer_cacv = np.zeros(useful_life)
+    cer_tip_libero = np.zeros(useful_life)
+    cer_cacv_libero = np.zeros(useful_life)
+    cer_tip_vincolato = np.zeros(useful_life)
+    cer_cacv_vincolato = np.zeros(useful_life)
     ammortamento = np.zeros(useful_life)
     tax_shield = np.zeros(useful_life)
     ires_irap = np.zeros(useful_life)
@@ -120,6 +125,11 @@ def compute_incentives(
         if year <= cer_duration:
             cer_tip[idx] = condivisa_year * cer_tip_tariff  # FIXED nominal
             cer_cacv[idx] = condivisa_year * cacv_tariff_year
+            # Split: libero (available to producer) vs vincolato (to CER members)
+            cer_tip_libero[idx] = cer_tip[idx] * cer_libero_ratio
+            cer_cacv_libero[idx] = cer_cacv[idx] * cer_libero_ratio
+            cer_tip_vincolato[idx] = cer_tip[idx] * (1.0 - cer_libero_ratio)
+            cer_cacv_vincolato[idx] = cer_cacv[idx] * (1.0 - cer_libero_ratio)
 
         # Tax shield from depreciation
         tax_shield[idx] = ammortamento[idx] * ires
@@ -142,6 +152,10 @@ def compute_incentives(
         rid_revenue=rid_revenue,
         cer_tip=cer_tip,
         cer_cacv=cer_cacv,
+        cer_tip_libero=cer_tip_libero,
+        cer_cacv_libero=cer_cacv_libero,
+        cer_tip_vincolato=cer_tip_vincolato,
+        cer_cacv_vincolato=cer_cacv_vincolato,
         ammortamento=ammortamento,
         tax_shield=tax_shield,
         ires_irap=ires_irap,

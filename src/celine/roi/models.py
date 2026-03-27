@@ -108,8 +108,12 @@ class IncentiveResult:
         production_degraded: Annual production after degradation in kWh.
         risparmio_autoconsumo: Annual savings from self-consumption in EUR.
         rid_revenue: Annual RID revenue in EUR.
-        cer_tip: Annual CER TIP incentive in EUR (FIXED nominal, 0 after year 20).
-        cer_cacv: Annual CER Cacv component in EUR (0 after year 20).
+        cer_tip: Annual CER TIP total incentive in EUR (FIXED nominal, 0 after year 20).
+        cer_cacv: Annual CER Cacv total component in EUR (0 after year 20).
+        cer_tip_libero: CER TIP libero portion (available to producer) in EUR.
+        cer_cacv_libero: CER Cacv libero portion (available to producer) in EUR.
+        cer_tip_vincolato: CER TIP vincolato portion (distributed to CER members) in EUR.
+        cer_cacv_vincolato: CER Cacv vincolato portion (distributed to CER members) in EUR.
         ammortamento: Annual depreciation amount in EUR.
         tax_shield: Annual tax savings from depreciation in EUR.
         ires_irap: Annual tax on RID + CER revenues in EUR.
@@ -121,6 +125,10 @@ class IncentiveResult:
     rid_revenue: np.ndarray
     cer_tip: np.ndarray
     cer_cacv: np.ndarray
+    cer_tip_libero: np.ndarray
+    cer_cacv_libero: np.ndarray
+    cer_tip_vincolato: np.ndarray
+    cer_cacv_vincolato: np.ndarray
     ammortamento: np.ndarray
     tax_shield: np.ndarray
     ires_irap: np.ndarray

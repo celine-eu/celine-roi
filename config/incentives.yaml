@@ -10,6 +10,9 @@ rid_tariff: 0.07             # EUR/kWh average (range: 0.04-0.12, PMZ zonale)
 cer_tip: 0.09                # EUR/kWh (90 EUR/MWh, includes North Italy bonus)
 cer_cacv: 0.0085             # EUR/kWh (8.5 EUR/MWh, ARERA Cacv component)
 cer_duration_years: 20       # CER incentive duration (fixed by decree)
+cer_libero_ratio: 0.55       # 55% of CER incentive is "libero" (available to producer)
+                             # 45% is "vincolato" (must be distributed to CER members)
+                             # Source: DM CACER D.M. 414/2023, Art. 7
 
 # Depreciation — mobile asset (roof-mounted, <150m3)
 # Source: Circolari AdE 46/E/2007, 36/E/2013

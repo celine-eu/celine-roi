@@ -16,7 +16,7 @@ REQUIRED_KEYS = frozenset({
     "general_inflation", "om_per_kwp", "insurance_rate", "wacc",
     "useful_life", "inverter_replacement_year",
     "sharing_ratio", "rid_tariff", "cer_tip", "cer_cacv",
-    "cer_duration_years", "depreciation_coeff",
+    "cer_duration_years", "cer_libero_ratio", "depreciation_coeff",
     "depreciation_first_year_factor", "ires", "irap",
 })
 

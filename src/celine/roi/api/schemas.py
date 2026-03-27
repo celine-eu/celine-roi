@@ -258,6 +258,18 @@ class IncentiveResultResponse(BaseModel):
     rid_revenue: list[float] = Field(description="Annual RID feed-in revenue EUR")
     cer_tip: list[float] = Field(description="Annual CER TIP incentive EUR (0 after year 20)")
     cer_cacv: list[float] = Field(description="Annual CER Cacv component EUR (0 after year 20)")
+    cer_tip_libero: list[float] = Field(
+        description="CER TIP libero portion (available to producer) EUR"
+    )
+    cer_cacv_libero: list[float] = Field(
+        description="CER Cacv libero portion (available to producer) EUR"
+    )
+    cer_tip_vincolato: list[float] = Field(
+        description="CER TIP vincolato portion (distributed to CER members) EUR"
+    )
+    cer_cacv_vincolato: list[float] = Field(
+        description="CER Cacv vincolato portion (distributed to CER members) EUR"
+    )
     ammortamento: list[float] = Field(description="Annual fiscal depreciation EUR")
     tax_shield: list[float] = Field(description="Annual IRES tax shield from depreciation EUR")
     ires_irap: list[float] = Field(description="Annual IRES+IRAP tax on RID+CER revenue EUR")
@@ -271,6 +283,10 @@ class IncentiveResultResponse(BaseModel):
             rid_revenue=obj.rid_revenue.tolist(),  # type: ignore[attr-defined]
             cer_tip=obj.cer_tip.tolist(),  # type: ignore[attr-defined]
             cer_cacv=obj.cer_cacv.tolist(),  # type: ignore[attr-defined]
+            cer_tip_libero=obj.cer_tip_libero.tolist(),  # type: ignore[attr-defined]
+            cer_cacv_libero=obj.cer_cacv_libero.tolist(),  # type: ignore[attr-defined]
+            cer_tip_vincolato=obj.cer_tip_vincolato.tolist(),  # type: ignore[attr-defined]
+            cer_cacv_vincolato=obj.cer_cacv_vincolato.tolist(),  # type: ignore[attr-defined]
             ammortamento=obj.ammortamento.tolist(),  # type: ignore[attr-defined]
             tax_shield=obj.tax_shield.tolist(),  # type: ignore[attr-defined]
             ires_irap=obj.ires_irap.tolist(),  # type: ignore[attr-defined]

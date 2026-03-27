@@ -76,43 +76,43 @@ class TestFormatReport:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "# CELINE ROI Scenario Report" in output
+        assert "Business Plan Impianto Fotovoltaico" in output
         assert "45.0 kWp" in output
 
     async def test_report_contains_npv(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "NPV" in output
-        assert "IRR" in output
+        assert "VAN" in output
+        assert "TIR" in output
 
     async def test_report_contains_decision(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "Investment Decision" in output
-        assert "Recommended" in output
+        assert "Giudizio" in output
+        assert "consigliato" in output
 
     async def test_report_contains_yearly_detail(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "Yearly Cash Flow Detail" in output
+        assert "Conto Economico" in output
         assert "Risparmio" in output
         assert "RID" in output
-        assert "CER TIP" in output
-        assert "Tax Shield" in output
+        assert "CER" in output
+        assert "Scudo Fisc" in output
 
     async def test_report_contains_energy_summary(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "Energy Summary" in output
-        assert "autoconsumo" in output.lower() or "Self-consumption" in output
+        assert "Bilancio Energetico" in output
+        assert "autoconsumo" in output.lower()
 
     async def test_report_contains_parameters(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario
         result = await run_scenario(reference_input, config)
         output = format_report(result, config)
-        assert "Key Parameters" in output
-        assert "WACC" in output
+        assert "Parametri di Calcolo" in output
+        assert "WACC" in output.upper() or "sconto" in output

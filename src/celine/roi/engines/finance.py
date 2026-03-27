@@ -82,11 +82,13 @@ def compute_finance(
         year = idx + 1
         inflation_factor = (1.0 + general_inflation) ** (year - 1)
 
+        # Only CER libero portion enters the producer's cashflow.
+        # The vincolato portion is distributed to CER members.
         revenue = (
             inc.risparmio_autoconsumo[idx]
             + inc.rid_revenue[idx]
-            + inc.cer_tip[idx]
-            + inc.cer_cacv[idx]
+            + inc.cer_tip_libero[idx]
+            + inc.cer_cacv_libero[idx]
             + inc.tax_shield[idx]
         )
 
@@ -120,8 +122,8 @@ def compute_finance(
             operating_cf = (
                 inc.risparmio_autoconsumo[idx]
                 + inc.rid_revenue[idx]
-                + inc.cer_tip[idx]
-                + inc.cer_cacv[idx]
+                + inc.cer_tip_libero[idx]
+                + inc.cer_cacv_libero[idx]
                 + inc.tax_shield[idx]
                 - inc.ires_irap[idx]
                 - om_base * inflation_factor
