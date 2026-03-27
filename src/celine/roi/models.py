@@ -185,3 +185,17 @@ class ScenarioResult:
     incentives: IncentiveResult
     finance: FinanceResult
     validation: ValidationReport
+
+
+@dataclass(frozen=True)
+class ComparisonResult:
+    """Side-by-side comparison of multiple scenarios.
+
+    Args:
+        scenarios: Ordered dict of scenario name -> full result.
+            First entry is always the base case.
+        summary_table: Formatted markdown comparison table.
+    """
+
+    scenarios: dict[str, ScenarioResult]
+    summary_table: str
