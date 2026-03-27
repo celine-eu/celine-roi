@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from celine.roi.config_loader import load_config
+from celine.roi.load_profiles import load_profile_config
 from celine.roi.models import ProductionData, SystemInput
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
@@ -58,3 +59,57 @@ def reference_production() -> ProductionData:
         annual_production_kwh=annual,
         source="synthetic",
     )
+
+
+PROFILE_PATH = CONFIG_DIR / "load_profiles" / "residential_default.json"
+
+
+def _build_synthetic_hourly_production(annual_kwh: float) -> np.ndarray:
+    """Build a synthetic 8760 hourly PV production array.
+
+    Uses a simplified solar model: sinusoidal output between sunrise and sunset,
+    varying with month (longer days in summer, shorter in winter).
+    """
+    days_per_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    # Sunrise/sunset hours per month (approximate 46N latitude)
+    sunrise = [7.5, 7.0, 6.5, 6.0, 5.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.0, 7.5]
+    sunset = [16.5, 17.5, 18.5, 19.5, 20.5, 21.0, 21.0, 20.0, 19.0, 17.5, 16.5, 16.0]
+
+    hourly = np.zeros(8760)
+    offset = 0
+    for month_idx, days in enumerate(days_per_month):
+        sr = sunrise[month_idx]
+        ss = sunset[month_idx]
+        for _day in range(days):
+            for hour in range(24):
+                if sr <= hour < ss:
+                    t_norm = (hour - sr) / (ss - sr)
+                    hourly[offset + hour] = np.sin(np.pi * t_norm)
+                else:
+                    hourly[offset + hour] = 0.0
+            offset += 24
+
+    raw_total = hourly.sum()
+    if raw_total > 0:
+        hourly = hourly * (annual_kwh / raw_total)
+    return hourly
+
+
+@pytest.fixture()
+def hourly_production() -> ProductionData:
+    """Synthetic hourly production for 49,500 kWh/year."""
+    annual = 49500.0
+    hourly = _build_synthetic_hourly_production(annual)
+    monthly = annual * SOLAR_MONTHLY_FRACTIONS
+    return ProductionData(
+        monthly_production_kwh=monthly,
+        annual_production_kwh=annual,
+        source="synthetic",
+        hourly_production_kwh=hourly,
+    )
+
+
+@pytest.fixture()
+def profile_config() -> dict:
+    """PVGIS residential load profile config."""
+    return load_profile_config(PROFILE_PATH)
