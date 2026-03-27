@@ -57,6 +57,11 @@ def compute_incentives(
     irap: float = config["irap"]
     tax_rate: float = ires + irap
 
+    # Regime flags — determine which revenue streams are active
+    regime_upper = system_input.regime.upper()
+    has_rid = "RID" in regime_upper
+    has_cer = "CER" in regime_upper
+
     # Year-1 monthly arrays (before degradation) — used for per-year re-matching
     monthly_production = energy_result.production.copy()
     monthly_consumption = energy_result.consumption.copy()
@@ -119,10 +124,11 @@ def compute_incentives(
 
         # Revenue streams
         risparmio_autoconsumo[idx] = autoconsumo_year * retail_year
-        rid_revenue[idx] = immissione_year * rid_tariff_year
+        if has_rid:
+            rid_revenue[idx] = immissione_year * rid_tariff_year
 
-        # CER incentives — only for first cer_duration years
-        if year <= cer_duration:
+        # CER incentives — only for first cer_duration years, only if regime includes CER
+        if has_cer and year <= cer_duration:
             cer_tip[idx] = condivisa_year * cer_tip_tariff  # FIXED nominal
             cer_cacv[idx] = condivisa_year * cacv_tariff_year
             # Split: libero (available to producer) vs vincolato (to CER members)
