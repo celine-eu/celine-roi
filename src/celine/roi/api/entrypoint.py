@@ -13,5 +13,8 @@ import os
 
 from celine.roi.api.app import create_app
 
-config_dir = os.environ.get("CELINE_CONFIG_DIR", "config")
-app = create_app(config_dir=config_dir)
+
+def main():
+    config_dir = os.environ.get("CELINE_CONFIG_DIR", "config")
+    app = create_app(config_dir=config_dir)
+    return app
