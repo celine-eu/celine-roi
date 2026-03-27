@@ -30,9 +30,11 @@ def input_without_override() -> SystemInput:
     )
 
 
-_MOCK_PVGIS = np.array(
+_MOCK_PVGIS_MONTHLY = np.array(
     [2000, 2500, 3500, 4500, 5500, 6000, 6000, 5500, 4000, 3000, 2000, 1500], dtype=float
 )
+_MOCK_PVGIS_HOURLY = np.ones(8760, dtype=float) * (_MOCK_PVGIS_MONTHLY.sum() / 8760)
+_MOCK_PVGIS = (_MOCK_PVGIS_MONTHLY, _MOCK_PVGIS_HOURLY)
 
 
 class TestFetchProductionSynthetic:

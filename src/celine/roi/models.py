@@ -61,12 +61,15 @@ class ProductionData:
         effective_kwp: Actual installed capacity in kWp. When Trentino API is used,
             this comes from the rooftop polygon (area * 160 W/m²) and may differ
             from the user-provided kwp. None means use system_input.kwp.
+        hourly_production_kwh: Optional 8760-element array of hourly production in kWh.
+            When available, the energy engine uses this for hourly matching.
     """
 
     monthly_production_kwh: np.ndarray
     annual_production_kwh: float
     source: str
     effective_kwp: float | None = None
+    hourly_production_kwh: np.ndarray | None = None
 
 
 @dataclass(frozen=True)

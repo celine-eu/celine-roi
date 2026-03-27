@@ -52,8 +52,8 @@ def _fetch_pvgis_monthly_blocking(
     tilt: float,
     azimuth: float,
     kwp: float,
-) -> np.ndarray:
-    """Fetch monthly production from PVGIS API via pvlib (blocking).
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fetch production from PVGIS API via pvlib (blocking).
 
     Called exclusively via asyncio.to_thread — never called directly
     from async code paths.
@@ -66,7 +66,7 @@ def _fetch_pvgis_monthly_blocking(
         kwp: Installed capacity in kWp.
 
     Returns:
-        12-element numpy array of monthly production in kWh.
+        Tuple of (monthly_12, hourly_8760) numpy arrays in kWh.
 
     Raises:
         ConnectionError: If the PVGIS API is unreachable.
@@ -86,9 +86,21 @@ def _fetch_pvgis_monthly_blocking(
     )
     # pvlib >= 0.15 returns (data, metadata); older versions return 4 values
     data = result[0]
+
+    # Hourly kWh (P is in Watts, each point is 1 hour)
+    hourly_kwh = (data["P"] / 1000.0).values
+
+    # PVGIS TMY may have extra hours for leap years — normalize to 8760
+    if len(hourly_kwh) > 8760:
+        hourly_kwh = hourly_kwh[:8760]
+    elif len(hourly_kwh) < 8760:
+        hourly_kwh = np.pad(hourly_kwh, (0, 8760 - len(hourly_kwh)))
+
+    # Monthly aggregation (same as before)
     monthly_kwh = data["P"].resample("ME").sum() / 1000.0
     monthly_avg = monthly_kwh.groupby(monthly_kwh.index.month).mean()
-    return monthly_avg.values
+
+    return monthly_avg.values, hourly_kwh
 
 
 async def _fetch_pvgis_monthly(
@@ -97,7 +109,7 @@ async def _fetch_pvgis_monthly(
     tilt: float,
     azimuth: float,
     kwp: float,
-) -> np.ndarray:
+) -> tuple[np.ndarray, np.ndarray]:
     """Async wrapper: offloads blocking pvlib call to thread pool."""
     return await asyncio.to_thread(
         _fetch_pvgis_monthly_blocking, latitude, longitude, tilt, azimuth, kwp
@@ -144,16 +156,17 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
             annual_trentino = trentino.electrical_output_kwh
 
             pvgis_kwp = trentino.nominal_power_kwp
-            pvgis_monthly = await _fetch_pvgis_monthly(
+            monthly, hourly = await _fetch_pvgis_monthly(
                 latitude=system_input.latitude,
                 longitude=system_input.longitude,
                 tilt=system_input.tilt,
                 azimuth=system_input.azimuth,
                 kwp=pvgis_kwp,
             )
-            pvgis_annual = float(pvgis_monthly.sum())
+            pvgis_annual = float(monthly.sum())
             scale_factor = annual_trentino / pvgis_annual
-            monthly = pvgis_monthly * scale_factor
+            monthly = monthly * scale_factor
+            hourly = hourly * scale_factor
 
             logger.info(
                 "Hybrid Trentino+PVGIS: Trentino annual=%.0f kWh, "
@@ -168,6 +181,7 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
                 annual_production_kwh=annual_trentino,
                 source="trentino+pvgis",
                 effective_kwp=trentino.nominal_power_kwp,
+                hourly_production_kwh=hourly,
             )
         except (ValueError, ConnectionError) as exc:
             logger.warning("Trentino Solar API failed, falling back to PVGIS: %s", exc)
@@ -180,7 +194,7 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
         system_input.azimuth,
         system_input.kwp,
     )
-    monthly = await _fetch_pvgis_monthly(
+    monthly, hourly = await _fetch_pvgis_monthly(
         latitude=system_input.latitude,
         longitude=system_input.longitude,
         tilt=system_input.tilt,
@@ -192,4 +206,5 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
         monthly_production_kwh=monthly,
         annual_production_kwh=annual,
         source="pvgis",
+        hourly_production_kwh=hourly,
     )
