@@ -70,8 +70,19 @@ def _compute_hourly(
     """L2 hourly matching with load profile."""
     production = production_data.hourly_production_kwh.copy()
 
+    if len(production) != 8760:
+        raise ValueError(
+            f"hourly_production_kwh must have 8760 elements, got {len(production)}"
+        )
+
     profile_name = config.get("load_profile", "residential_default.json")
     profile_path = _CONFIG_DIR / "load_profiles" / profile_name
+
+    if not profile_path.exists():
+        raise FileNotFoundError(
+            f"Load profile not found: {profile_path}. "
+            "Set 'load_profile' in config or check config directory."
+        )
     profile_config = load_profile_config(profile_path)
     consumption = build_hourly_consumption(
         annual_consumption_kwh=system_input.annual_consumption_kwh,
@@ -108,10 +119,11 @@ def _match_and_build_result(
 
     # Invariant check
     balance_error = abs(autoconsumo.sum() + immissione.sum() - total_production)
-    assert balance_error < 0.01, (
-        f"Energy balance violated: autoconsumo + immissione = "
-        f"{autoconsumo.sum() + immissione.sum():.2f}, production = {total_production:.2f}"
-    )
+    if balance_error >= 0.01:
+        raise ValueError(
+            f"Energy balance violated: autoconsumo + immissione = "
+            f"{autoconsumo.sum() + immissione.sum():.4f}, production = {total_production:.4f}"
+        )
 
     mode = "L2 hourly" if len(production) > 12 else "L1 monthly"
     logger.info(
