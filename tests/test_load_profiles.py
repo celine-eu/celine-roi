@@ -3,6 +3,7 @@
 Run with: pytest tests/test_load_profiles.py -v
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -66,7 +67,7 @@ class TestBuildHourlyConsumption:
         assert np.all(result >= 0.0)
 
     def test_nighttime_higher_than_midday(self, profile_config: dict) -> None:
-        """Evening hours (20-23) average should be > midday (9-12) average * 2.
+        """Evening hours (20-23) average should be > midday (9-13) average * 2.
 
         The PVGIS residential profile has a strong evening peak; this reflects
         that household consumption is minimal at solar noon.
@@ -126,3 +127,33 @@ class TestBuildHourlyConsumption:
                 f"Month {month_idx + 1}: got {month_total:.4f}, expected {expected:.4f}"
             )
             offset += month_hours
+
+
+class TestLoadProfileConfigErrors:
+    """Tests for error handling in profile config loading."""
+
+    def test_missing_hourly_coefficients_raises(self, tmp_path: Path) -> None:
+        config = {"monthly_weights": [1 / 12] * 12}
+        path = tmp_path / "bad.json"
+        path.write_text(json.dumps(config))
+        with pytest.raises(ValueError, match="Missing required key"):
+            load_profile_config(path)
+
+    def test_missing_monthly_weights_raises(self, tmp_path: Path) -> None:
+        config = {"hourly_coefficients": [1 / 24] * 24}
+        path = tmp_path / "bad.json"
+        path.write_text(json.dumps(config))
+        with pytest.raises(ValueError, match="Missing required key"):
+            load_profile_config(path)
+
+    def test_wrong_hourly_count_raises(self, tmp_path: Path) -> None:
+        config = {"hourly_coefficients": [0.5, 0.5], "monthly_weights": [1 / 12] * 12}
+        path = tmp_path / "bad.json"
+        path.write_text(json.dumps(config))
+        with pytest.raises(ValueError, match="Expected 24"):
+            load_profile_config(path)
+
+    def test_negative_consumption_raises(self) -> None:
+        config = load_profile_config(PROFILE_PATH)
+        with pytest.raises(ValueError, match="must be >= 0"):
+            build_hourly_consumption(-100.0, config)

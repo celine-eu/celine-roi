@@ -38,8 +38,11 @@ def load_profile_config(profile_path: Path) -> dict[str, Any]:
     with open(profile_path) as fh:
         config = json.load(fh)
 
-    hourly = config["hourly_coefficients"]
-    monthly = config["monthly_weights"]
+    try:
+        hourly = config["hourly_coefficients"]
+        monthly = config["monthly_weights"]
+    except KeyError as exc:
+        raise ValueError(f"Missing required key in profile config: {exc}") from exc
 
     if len(hourly) != 24:
         raise ValueError(f"Expected 24 hourly coefficients, got {len(hourly)}")
@@ -72,6 +75,10 @@ def build_hourly_consumption(
     Returns:
         Numpy array of shape (8760,) with hourly consumption in kWh.
     """
+    if annual_consumption_kwh < 0:
+        raise ValueError(
+            f"annual_consumption_kwh must be >= 0, got {annual_consumption_kwh}"
+        )
     if annual_consumption_kwh == 0.0:
         return np.zeros(HOURS_PER_YEAR)
 
@@ -84,10 +91,9 @@ def build_hourly_consumption(
     for month_idx, days in enumerate(DAYS_PER_MONTH):
         monthly_kwh = annual_consumption_kwh * monthly_weights[month_idx]
         daily_kwh = monthly_kwh / days
-
-        for _day in range(days):
-            result[offset : offset + 24] = daily_kwh * hourly_shape
-            offset += 24
+        month_slice = np.tile(hourly_shape * daily_kwh, days)
+        result[offset : offset + days * 24] = month_slice
+        offset += days * 24
 
     logger.info(
         "Built hourly consumption profile: %.0f kWh/year, peak hour=%.3f kWh",
