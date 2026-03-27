@@ -1,0 +1,128 @@
+"""Tests for the hourly load profile builder module.
+
+Run with: pytest tests/test_load_profiles.py -v
+"""
+
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from celine.roi.load_profiles import build_hourly_consumption, load_profile_config
+
+CONFIG_DIR = Path(__file__).parent.parent / "config"
+PROFILE_PATH = CONFIG_DIR / "load_profiles" / "residential_default.json"
+
+DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+
+class TestLoadProfileConfig:
+    """Tests for load_profile_config()."""
+
+    def test_load_profile_config(self) -> None:
+        """Loads config and checks required keys exist."""
+        config = load_profile_config(PROFILE_PATH)
+        assert "hourly_coefficients" in config
+        assert "monthly_weights" in config
+
+    def test_hourly_coefficients_sum_to_one(self) -> None:
+        """24 hourly coefficients must sum to approximately 1.0."""
+        config = load_profile_config(PROFILE_PATH)
+        coefficients = config["hourly_coefficients"]
+        assert len(coefficients) == 24
+        assert abs(sum(coefficients) - 1.0) < 1e-6
+
+    def test_monthly_weights_sum_to_one(self) -> None:
+        """12 monthly weights must sum to approximately 1.0."""
+        config = load_profile_config(PROFILE_PATH)
+        weights = config["monthly_weights"]
+        assert len(weights) == 12
+        assert abs(sum(weights) - 1.0) < 1e-6
+
+
+class TestBuildHourlyConsumption:
+    """Tests for build_hourly_consumption()."""
+
+    @pytest.fixture()
+    def profile_config(self) -> dict:
+        """Load the residential default profile config."""
+        return load_profile_config(PROFILE_PATH)
+
+    def test_returns_8760_array(self, profile_config: dict) -> None:
+        """Result must be a numpy array of length 8760."""
+        result = build_hourly_consumption(3000.0, profile_config)
+        assert isinstance(result, np.ndarray)
+        assert len(result) == 8760
+
+    def test_annual_total_preserved(self, profile_config: dict) -> None:
+        """Sum of hourly values must equal the annual input."""
+        annual_kwh = 4500.0
+        result = build_hourly_consumption(annual_kwh, profile_config)
+        assert abs(result.sum() - annual_kwh) < 1e-6
+
+    def test_all_values_non_negative(self, profile_config: dict) -> None:
+        """No hourly value should be negative."""
+        result = build_hourly_consumption(3000.0, profile_config)
+        assert np.all(result >= 0.0)
+
+    def test_nighttime_higher_than_midday(self, profile_config: dict) -> None:
+        """Evening hours (20-23) average should be > midday (9-12) average * 2.
+
+        The PVGIS residential profile has a strong evening peak; this reflects
+        that household consumption is minimal at solar noon.
+        """
+        result = build_hourly_consumption(3000.0, profile_config)
+        # Use first week (168 hours) to sample daily pattern stably
+        first_week = result[:168]
+
+        evening_hours = [20, 21, 22, 23]
+        midday_hours = [9, 10, 11, 12]
+
+        evening_avg = np.mean([first_week[h::24] for h in evening_hours])
+        midday_avg = np.mean([first_week[h::24] for h in midday_hours])
+
+        assert evening_avg > midday_avg * 2
+
+    def test_winter_higher_than_summer(self, profile_config: dict) -> None:
+        """January total consumption should be higher than July total.
+
+        January monthly weight (0.098) > July monthly weight (0.067).
+        """
+        result = build_hourly_consumption(3000.0, profile_config)
+        # January: hours 0–743
+        january_hours = 0
+        for _m in range(0):
+            january_hours += DAYS_PER_MONTH[_m] * 24
+        january_end = january_hours + DAYS_PER_MONTH[0] * 24
+
+        # July: month index 6, hours 4344–5087
+        july_start = sum(d * 24 for d in DAYS_PER_MONTH[:6])
+        july_end = july_start + DAYS_PER_MONTH[6] * 24
+
+        january_total = result[january_hours:january_end].sum()
+        july_total = result[july_start:july_end].sum()
+
+        assert january_total > july_total
+
+    def test_zero_consumption(self, profile_config: dict) -> None:
+        """Zero annual consumption returns 8760 zeros."""
+        result = build_hourly_consumption(0.0, profile_config)
+        assert isinstance(result, np.ndarray)
+        assert len(result) == 8760
+        assert np.all(result == 0.0)
+
+    def test_monthly_distribution_matches_weights(self, profile_config: dict) -> None:
+        """Each month's share of total consumption must match config weights."""
+        annual_kwh = 10000.0
+        result = build_hourly_consumption(annual_kwh, profile_config)
+        monthly_weights = profile_config["monthly_weights"]
+
+        offset = 0
+        for month_idx, days in enumerate(DAYS_PER_MONTH):
+            month_hours = days * 24
+            month_total = result[offset : offset + month_hours].sum()
+            expected = annual_kwh * monthly_weights[month_idx]
+            assert abs(month_total - expected) < 1e-6, (
+                f"Month {month_idx + 1}: got {month_total:.4f}, expected {expected:.4f}"
+            )
+            offset += month_hours
