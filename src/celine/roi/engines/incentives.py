@@ -67,6 +67,12 @@ def compute_incentives(
     monthly_consumption = energy_result.consumption.copy()
     sharing = config["sharing_ratio"]
 
+    # Determine user type: business gets depreciation, residential gets detrazione
+    detrazione_eligible_types: list[str] = config.get(
+        "detrazione_eligible_types", ["residential"]
+    )
+    is_business: bool = system_input.user_type not in detrazione_eligible_types
+
     # Allocate output arrays
     years = np.arange(1, useful_life + 1)
     production_degraded = np.zeros(useful_life)
@@ -81,18 +87,43 @@ def compute_incentives(
     ammortamento = np.zeros(useful_life)
     tax_shield = np.zeros(useful_life)
     ires_irap = np.zeros(useful_life)
+    detrazione_irpef = np.zeros(useful_life)
 
-    # Compute depreciation schedule
-    cumulative_dep = 0.0
-    for idx in range(useful_life):
-        year = idx + 1
-        if year == 1:
-            amount = min(capex * dep_coeff * dep_first_factor, capex - cumulative_dep)
+    # Compute depreciation schedule (business users only)
+    if is_business:
+        cumulative_dep = 0.0
+        for idx in range(useful_life):
+            year = idx + 1
+            if year == 1:
+                amount = min(capex * dep_coeff * dep_first_factor, capex - cumulative_dep)
+            else:
+                amount = min(capex * dep_coeff, capex - cumulative_dep)
+            amount = max(0.0, amount)
+            ammortamento[idx] = amount
+            cumulative_dep += amount
+
+    # Compute detrazione IRPEF (residential users only)
+    det_max_kwp: float = config.get("detrazione_max_kwp", 20.0)
+    det_years: int = config.get("detrazione_years", 10)
+    det_max_eur: float = config.get("detrazione_max_eur", 96_000)
+    detrazione_enabled: bool = config.get("detrazione_enabled", True)
+
+    is_det_eligible: bool = (
+        detrazione_enabled
+        and not is_business
+        and system_input.kwp <= det_max_kwp
+    )
+
+    if is_det_eligible:
+        if system_input.abitazione_principale:
+            det_rate: float = config.get("detrazione_rate_primary", 0.50)
         else:
-            amount = min(capex * dep_coeff, capex - cumulative_dep)
-        amount = max(0.0, amount)
-        ammortamento[idx] = amount
-        cumulative_dep += amount
+            det_rate = config.get("detrazione_rate_other", 0.36)
+
+        deductible_base: float = min(capex, det_max_eur)
+        annual_credit: float = (deductible_base * det_rate) / det_years
+        for idx in range(min(det_years, useful_life)):
+            detrazione_irpef[idx] = annual_credit
 
     # Compute yearly values
     for idx in range(useful_life):
@@ -137,8 +168,9 @@ def compute_incentives(
             cer_tip_vincolato[idx] = cer_tip[idx] * (1.0 - cer_libero_ratio)
             cer_cacv_vincolato[idx] = cer_cacv[idx] * (1.0 - cer_libero_ratio)
 
-        # Tax shield from depreciation
-        tax_shield[idx] = ammortamento[idx] * ires
+        # Tax shield from depreciation (business users only)
+        if is_business:
+            tax_shield[idx] = ammortamento[idx] * ires
 
         # Taxation on RID + CER only (autoconsumo is NOT taxable)
         taxable = rid_revenue[idx] + cer_tip[idx] + cer_cacv[idx]
@@ -165,4 +197,5 @@ def compute_incentives(
         ammortamento=ammortamento,
         tax_shield=tax_shield,
         ires_irap=ires_irap,
+        detrazione_irpef=detrazione_irpef,
     )

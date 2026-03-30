@@ -140,3 +140,128 @@ class TestComputeIncentivesDegradation:
         tax_rate = config["ires"] + config["irap"]
         expected_tax = taxable_y1 * tax_rate
         assert result.ires_irap[0] == pytest.approx(expected_tax, rel=1e-3)
+
+
+class TestDetrazioneIrpef:
+    """Tests for residential IRPEF tax deduction (Bonus Ristrutturazione)."""
+
+    @pytest.fixture()
+    def residential_input(self) -> SystemInput:
+        """Small residential system eligible for detrazione."""
+        return SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+
+    @pytest.fixture()
+    def residential_energy(self, residential_input: SystemInput, config: dict):
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        pd = ProductionData(
+            monthly_production_kwh=7200.0 * SOLAR_MONTHLY_FRACTIONS,
+            annual_production_kwh=7200.0,
+            source="synthetic",
+        )
+        return compute_energy(residential_input, pd, config)
+
+    def test_detrazione_primary_residence(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """Primary residence: 50% of CAPEX / 10 years."""
+        result = compute_incentives(residential_input, residential_energy, config)
+        expected = 8400.0 * 0.50 / 10  # 420 EUR/year
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_10_years_only(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """Detrazione runs for 10 years, then zero."""
+        result = compute_incentives(residential_input, residential_energy, config)
+        assert all(result.detrazione_irpef[:10] > 0)
+        assert all(result.detrazione_irpef[10:] == 0.0)
+
+    def test_detrazione_non_primary(self, residential_energy, config) -> None:
+        """Non-primary residence: 36% rate instead of 50%."""
+        si = SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=False,
+        )
+        result = compute_incentives(si, residential_energy, config)
+        expected = 8400.0 * 0.36 / 10  # 302.40 EUR/year
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_cap_at_96000(self, residential_energy, config) -> None:
+        """CAPEX above 96k capped at 96k for deduction base."""
+        si = SystemInput(
+            kwp=18.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=120000.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+        result = compute_incentives(si, residential_energy, config)
+        expected = 96000.0 * 0.50 / 10  # 4800 EUR/year
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_no_detrazione_for_commercial(
+        self, reference_input, energy_result, config,
+    ) -> None:
+        """Commercial user_type: no detrazione, has depreciation."""
+        result = compute_incentives(reference_input, energy_result, config)
+        assert all(result.detrazione_irpef == 0.0)
+        assert result.ammortamento[0] > 0  # Business has depreciation
+
+    def test_no_detrazione_over_20kwp(self, residential_energy, config) -> None:
+        """Residential >20 kWp: not eligible for detrazione."""
+        si = SystemInput(
+            kwp=25.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=30000.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+        result = compute_incentives(si, residential_energy, config)
+        assert all(result.detrazione_irpef == 0.0)
+
+    def test_detrazione_disabled_override(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """detrazione_enabled=False disables deduction."""
+        cfg = {**config, "detrazione_enabled": False}
+        result = compute_incentives(residential_input, residential_energy, cfg)
+        assert all(result.detrazione_irpef == 0.0)
+
+
+class TestDepreciationGating:
+    """Depreciation/tax_shield disabled for residential users."""
+
+    def test_residential_no_depreciation(self, config) -> None:
+        """Residential user_type should have zero ammortamento and tax_shield."""
+        si = SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        pd = ProductionData(
+            monthly_production_kwh=7200.0 * SOLAR_MONTHLY_FRACTIONS,
+            annual_production_kwh=7200.0,
+            source="synthetic",
+        )
+        energy = compute_energy(si, pd, config)
+        result = compute_incentives(si, energy, config)
+        assert all(result.ammortamento == 0.0)
+        assert all(result.tax_shield == 0.0)
+
+    def test_commercial_has_depreciation(self, reference_input, energy_result, config) -> None:
+        """Commercial user_type should still have depreciation (existing behavior)."""
+        result = compute_incentives(reference_input, energy_result, config)
+        assert result.ammortamento[0] > 0
+        assert result.tax_shield[0] > 0
