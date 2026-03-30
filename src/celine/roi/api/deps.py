@@ -41,6 +41,9 @@ def apply_config_overrides(
         New dict with overrides applied.
     """
     effective = dict(base_config)
-    for key, value in overrides.model_dump(exclude_none=True).items():
+    overrides_dict = overrides.model_dump(exclude_none=True)
+    for key, value in overrides_dict.items():
         effective[key] = value
+    if "load_profile" in overrides_dict:
+        effective.pop("load_profile_by_type", None)
     return effective

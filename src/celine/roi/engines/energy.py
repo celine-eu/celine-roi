@@ -75,7 +75,11 @@ def _compute_hourly(
             f"hourly_production_kwh must have 8760 elements, got {len(production)}"
         )
 
-    profile_name = config.get("load_profile", "residential_default.json")
+    profile_map = config.get("load_profile_by_type", {})
+    profile_name = profile_map.get(
+        system_input.user_type,
+        config.get("load_profile", "residential_default.json"),
+    )
     profile_path = _CONFIG_DIR / "load_profiles" / profile_name
 
     if not profile_path.exists():
