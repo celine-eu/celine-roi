@@ -19,3 +19,9 @@ sharing_ratio: 0.55          # CER sharing ratio (range: 0.40-0.70)
 
 # Load profile
 load_profile: "residential_default.json"
+load_profile_by_type:
+  residential: "residential_default.json"
+  office: "commercial_default.json"
+  commercial: "commercial_default.json"
+  industrial: "industrial_default.json"
+  agricultural: "industrial_default.json"

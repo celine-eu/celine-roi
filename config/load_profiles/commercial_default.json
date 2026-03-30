@@ -1,0 +1,41 @@
+{
+  "profile_type": "commercial_default",
+  "description": "Commercial/office electricity consumption profile. Peak during business hours (08:00-18:00), low baseload overnight. Adapted from BDEW G0 standard commercial profile for Italian context.",
+  "source": "BDEW G0/G1 adapted",
+  "date_derived": "2026-03-30",
+  "resolution": "hourly",
+  "normalized": true,
+  "region": "Italy (general commercial/office)",
+  "notes": [
+    "Sum of coefficients = 1.0",
+    "Peak hours: 09:00-17:00 (business operations)",
+    "~65% of daily consumption during sun hours (08:00-18:00)",
+    "Overnight baseload ~15% (security, HVAC standby, IT infrastructure)",
+    "Expected self-consumption rate: 45-65% for well-sized systems"
+  ],
+  "hourly_coefficients": [
+    0.0150, 0.0130, 0.0120, 0.0120, 0.0120, 0.0130,
+    0.0200, 0.0400, 0.0650, 0.0750, 0.0800, 0.0800,
+    0.0750, 0.0780, 0.0780, 0.0750, 0.0700, 0.0550,
+    0.0350, 0.0250, 0.0200, 0.0180, 0.0170, 0.0170
+  ],
+  "validation": {
+    "sum": 1.0,
+    "peak_hour": 10,
+    "peak_value": 0.0800,
+    "min_hour": 2,
+    "min_value": 0.0120,
+    "sun_hours_share": 0.651,
+    "peak_description": "Business hours office/retail operations (09:00-17:00)"
+  },
+  "monthly_weights": [
+    0.090, 0.085, 0.085, 0.080, 0.080, 0.082,
+    0.082, 0.075, 0.080, 0.085, 0.088, 0.088
+  ],
+  "monthly_weights_validation": {
+    "sum": 1.0,
+    "source": "Commercial pattern: more uniform than residential, slight winter increase from lighting/heating",
+    "winter_share": 0.521,
+    "summer_share": 0.479
+  }
+}
