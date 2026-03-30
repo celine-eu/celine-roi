@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 # ── Shared literals ────────────────────────────────────────────────────────────
 
 UserType = Literal["residential", "office", "commercial", "industrial", "agricultural"]
-Regime = Literal["RID", "CER", "RID_CER"]
+Regime = Literal["RID", "RID_CER"]
 
 
 # ── Config overrides ───────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ class SystemInputRequest(BaseModel):
         description="Panel azimuth in degrees (0=south, 90=west, -90=east)",
     )
     capex: float = Field(gt=0.0, description="Total CAPEX in EUR (net of IVA)")
-    annual_consumption_kwh: float = Field(gt=0.0, description="Annual site consumption kWh")
+    annual_consumption_kwh: float = Field(ge=0.0, description="Annual site consumption kWh (0 = pure export)")
     user_type: UserType = Field(default="commercial")
     regime: Regime = Field(default="RID_CER")
     equity_fraction: float = Field(

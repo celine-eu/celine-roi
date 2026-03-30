@@ -69,10 +69,10 @@ class TestCompareScenarios:
     ) -> None:
         result = await compare_scenarios(
             base_input, base_config,
-            {"CER": {}, "Solo RID": {"regime": "RID"}},
+            {"Base RID+CER": {}, "Solo RID": {"regime": "RID"}},
         )
         assert len(result.scenarios) == 2
-        npv_cer = result.scenarios["CER"].finance.npv
+        npv_cer = result.scenarios["Base RID+CER"].finance.npv
         npv_rid = result.scenarios["Solo RID"].finance.npv
         assert npv_cer != npv_rid
 
