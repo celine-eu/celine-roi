@@ -1,0 +1,22 @@
+version: "3"
+
+tasks:
+  setup:
+    cmds:
+      - uv sync
+
+  run:
+    desc: Run
+    cmds:
+      - .venv/bin/uvicorn celine.roi.api.entrypoint:main --host 0.0.0.0 --port 8018 --reload
+
+  debug:
+    desc: Debug
+    cmds:
+      - DEBUG_ATTACH=nowait DEBUG_PORT=48018 .venv/bin/uvicorn celine.roi.api.entrypoint:main --host 0.0.0.0 --port 8018 --reload
+
+  release:
+    cmds:
+      - uv run semantic-release -v version --no-vcs-release
+      - git push
+      - git push --tags
