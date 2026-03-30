@@ -90,6 +90,7 @@ def compute_finance(
             + inc.cer_tip_libero[idx]
             + inc.cer_cacv_libero[idx]
             + inc.tax_shield[idx]
+            + inc.detrazione_irpef[idx]
         )
 
         costs = inc.ires_irap[idx] + om_base * inflation_factor + insurance_base * inflation_factor
@@ -125,6 +126,7 @@ def compute_finance(
                 + inc.cer_tip_libero[idx]
                 + inc.cer_cacv_libero[idx]
                 + inc.tax_shield[idx]
+                + inc.detrazione_irpef[idx]
                 - inc.ires_irap[idx]
                 - om_base * inflation_factor
                 - insurance_base * inflation_factor

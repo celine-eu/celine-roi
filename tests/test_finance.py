@@ -10,6 +10,7 @@ from celine.roi.engines.energy import compute_energy
 from celine.roi.engines.finance import compute_finance
 from celine.roi.engines.incentives import compute_incentives
 from celine.roi.models import FinanceResult, ProductionData, SystemInput
+from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
 
 
 @pytest.fixture()
@@ -100,9 +101,7 @@ class TestFinanceWithLoan:
             regime="RID_CER", equity_fraction=0.3, loan_rate=0.05,
             loan_duration_years=15, annual_production_kwh=49500.0,
         )
-        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 49500.0 * SOLAR_MONTHLY_FRACTIONS
-        from celine.roi.models import ProductionData
         pd = ProductionData(
             monthly_production_kwh=monthly,
             annual_production_kwh=49500.0,
@@ -120,9 +119,7 @@ class TestFinanceWithLoan:
             regime="RID_CER", equity_fraction=0.3, loan_rate=0.05,
             loan_duration_years=15, annual_production_kwh=49500.0,
         )
-        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
         monthly = 49500.0 * SOLAR_MONTHLY_FRACTIONS
-        from celine.roi.models import ProductionData
         pd = ProductionData(
             monthly_production_kwh=monthly,
             annual_production_kwh=49500.0,
@@ -133,3 +130,38 @@ class TestFinanceWithLoan:
         result = compute_finance(si, incentives, config)
         assert result.dscr is not None
         assert len(result.dscr) == 15
+
+
+class TestFinanceWithDetrazione:
+    """Finance engine correctly includes detrazione IRPEF in cashflows."""
+
+    def test_residential_cashflow_includes_detrazione(self, config) -> None:
+        """Residential system cashflows should include detrazione credit."""
+        si = SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+        monthly = 7200.0 * SOLAR_MONTHLY_FRACTIONS
+        pd = ProductionData(
+            monthly_production_kwh=monthly,
+            annual_production_kwh=7200.0,
+            source="synthetic",
+        )
+        energy = compute_energy(si, pd, config)
+        incentives = compute_incentives(si, energy, config)
+        result = compute_finance(si, incentives, config)
+
+        # Detrazione adds 8400*0.50/10 = 420 EUR/yr for 10 years
+        assert result.cashflows[1] > 0
+        assert result.npv > 0, "Residential with detrazione should have positive NPV"
+
+    def test_commercial_finance_unchanged(
+        self, reference_input, incentive_result, config
+    ) -> None:
+        """Commercial finance results should be unchanged (no detrazione)."""
+        result = compute_finance(reference_input, incentive_result, config)
+        assert result.npv > 0
+        assert result.cashflows[1] > 0
