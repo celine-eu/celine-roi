@@ -34,6 +34,7 @@ def to_system_input(s: SystemInputRequest) -> SystemInput:
         annual_production_kwh=s.annual_production_kwh,
         location=s.location,
         rooftop_wkt=s.rooftop_wkt,
+        abitazione_principale=s.abitazione_principale,
     )
 
 
@@ -64,6 +65,7 @@ def to_incentive_result(i: IncentiveResultResponse) -> IncentiveResult:
         ammortamento=np.array(i.ammortamento),
         tax_shield=np.array(i.tax_shield),
         ires_irap=np.array(i.ires_irap),
+        detrazione_irpef=np.array(i.detrazione_irpef),
     )
 
 

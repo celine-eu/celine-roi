@@ -31,6 +31,8 @@ class SystemInput:
         loan_duration_years: Loan duration in years (0 if no loan).
         annual_production_kwh: Manual override for annual production. Skips PVGIS.
         location: Human-readable site label.
+        abitazione_principale: Primary residence flag. Affects IRPEF deduction rate
+            (50% for primary in 2026, 36% for other residential).
     """
 
     kwp: float
@@ -48,6 +50,7 @@ class SystemInput:
     annual_production_kwh: float | None = None
     location: str = ""
     rooftop_wkt: str | None = None  # WKT polygon of rooftop (for Trentino Solar API)
+    abitazione_principale: bool = True  # Primary residence — affects IRPEF deduction rate
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,7 @@ class IncentiveResult:
         ammortamento: Annual depreciation amount in EUR.
         tax_shield: Annual tax savings from depreciation in EUR.
         ires_irap: Annual tax on RID + CER revenues in EUR.
+        detrazione_irpef: Annual IRPEF tax credit in EUR (residential <=20 kWp only, 0 otherwise).
     """
 
     years: np.ndarray
@@ -132,6 +136,7 @@ class IncentiveResult:
     ammortamento: np.ndarray
     tax_shield: np.ndarray
     ires_irap: np.ndarray
+    detrazione_irpef: np.ndarray
 
 
 @dataclass(frozen=True)

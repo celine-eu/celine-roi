@@ -18,3 +18,15 @@ cer_libero_ratio: 0.55       # 55% of CER incentive is "libero" (available to pr
 # Source: Circolari AdE 46/E/2007, 36/E/2013
 depreciation_coeff: 0.09     # 9%/year (~11 years full depreciation)
 depreciation_first_year_factor: 0.5  # 50% of coefficient in year 1
+
+# Detrazione fiscale IRPEF -- residential PV (Bonus Ristrutturazione)
+# Source: Art. 16-bis TUIR, Legge di Bilancio 2025, proroghe 2026-2027
+# Rates valid for expenses in 2026. Update when year changes.
+# 2027: primary=0.36, other=0.30. 2028+: both=0.30.
+detrazione_rate_primary: 0.50       # Abitazione principale (2026)
+detrazione_rate_other: 0.36         # Other residential (2026)
+detrazione_years: 10                # 10 equal annual installments
+detrazione_max_eur: 96000           # Cap per unita immobiliare
+detrazione_max_kwp: 20.0            # Only systems <= 20 kWp
+detrazione_eligible_types:
+  - residential

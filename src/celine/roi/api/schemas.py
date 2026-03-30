@@ -74,6 +74,10 @@ class ConfigOverrides(BaseModel):
         default=None,
         description="Load profile filename (e.g., 'residential_heat_pump.json')",
     )
+    detrazione_enabled: bool | None = Field(
+        default=None,
+        description="Enable/disable residential IRPEF deduction (default: True when eligible)",
+    )
 
 
 # ── System input request ───────────────────────────────────────────────────────
@@ -116,6 +120,11 @@ class SystemInputRequest(BaseModel):
         description="Manual annual production override — skips PVGIS fetch when set",
     )
     location: str = Field(default="", max_length=200, description="Human-readable site name")
+    abitazione_principale: bool = Field(
+        default=True,
+        description="Primary residence flag. Affects IRPEF deduction rate: "
+                    "50% for primary (2026), 36% for other residential.",
+    )
     rooftop_wkt: str | None = Field(
         default=None,
         description="WKT polygon of rooftop for Trentino Solar LIDAR API (Trentino only)",
@@ -277,6 +286,9 @@ class IncentiveResultResponse(BaseModel):
     ammortamento: list[float] = Field(description="Annual fiscal depreciation EUR")
     tax_shield: list[float] = Field(description="Annual IRES tax shield from depreciation EUR")
     ires_irap: list[float] = Field(description="Annual IRES+IRAP tax on RID+CER revenue EUR")
+    detrazione_irpef: list[float] = Field(
+        description="Annual IRPEF tax credit EUR (residential <=20 kWp only, 0 otherwise)"
+    )
 
     @classmethod
     def from_domain(cls, obj: object) -> "IncentiveResultResponse":
@@ -294,6 +306,7 @@ class IncentiveResultResponse(BaseModel):
             ammortamento=obj.ammortamento.tolist(),  # type: ignore[attr-defined]
             tax_shield=obj.tax_shield.tolist(),  # type: ignore[attr-defined]
             ires_irap=obj.ires_irap.tolist(),  # type: ignore[attr-defined]
+            detrazione_irpef=obj.detrazione_irpef.tolist(),  # type: ignore[attr-defined]
         )
 
 
