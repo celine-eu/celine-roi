@@ -147,6 +147,14 @@ def validate_model(
     if energy.immissione.sum() < 0.01:
         warns.append(("zero_export", "No energy exported — RID and CER incentives will be zero"))
 
+    hp_kwh = system_input.heat_pump_kwh_annual
+    if hp_kwh > system_input.annual_consumption_kwh:
+        warns.append((
+            "heat_pump_oversized",
+            f"Heat pump {hp_kwh:.0f} kWh > base consumption {system_input.annual_consumption_kwh:.0f} kWh — "
+            "verify HP sizing (typical Italian residential: 2500-4500 kWh/year)"
+        ))
+
     # --- Invariant Checks ---
 
     balance = abs(energy.autoconsumo.sum() + energy.immissione.sum() - energy.production.sum())

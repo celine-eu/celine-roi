@@ -6,7 +6,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from celine.roi.api.routes import capex, compare, energy, finance, incentives, production, scenario, validate
 from celine.roi.config_loader import load_config
@@ -68,5 +70,19 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
     app.include_router(scenario.router, prefix=prefix, tags=["scenario"])
     app.include_router(capex.router, prefix=prefix, tags=["capex"])
     app.include_router(compare.router, prefix=prefix, tags=["compare"])
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        """Convert Pydantic validation errors to human-readable messages."""
+        messages = []
+        for err in exc.errors():
+            field = " → ".join(str(loc) for loc in err["loc"] if loc != "body")
+            messages.append(f"{field}: {err['msg']}")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "; ".join(messages)},
+        )
 
     return app

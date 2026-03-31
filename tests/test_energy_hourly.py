@@ -220,3 +220,80 @@ class TestProfileRoutingByUserType:
         assert hp_result.tasso_autoconsumo > res_result.tasso_autoconsumo, (
             "Heat pump override should produce higher autoconsumo than default residential"
         )
+
+
+class TestHeatPumpKwhAnnual:
+    """Tests for SystemInput.heat_pump_kwh_annual field in hourly energy matching."""
+
+    def test_heat_pump_kwh_adds_to_total_consumption(
+        self, hourly_production: ProductionData, config: dict
+    ) -> None:
+        """Total consumption in result must equal base + heat_pump_kwh_annual."""
+        base_kwh = 4500.0
+        hp_kwh = 3500.0
+        si = SystemInput(
+            kwp=10.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=12000.0, annual_consumption_kwh=base_kwh, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            annual_production_kwh=12000.0,
+            heat_pump_kwh_annual=hp_kwh,
+        )
+        hourly = hourly_production.hourly_production_kwh * (12000.0 / 49500.0)
+        monthly = hourly_production.monthly_production_kwh * (12000.0 / 49500.0)
+        pd = ProductionData(
+            monthly_production_kwh=monthly,
+            annual_production_kwh=12000.0,
+            source="synthetic",
+            hourly_production_kwh=hourly,
+        )
+        result = compute_energy(si, pd, config)
+        assert abs(result.consumption.sum() - (base_kwh + hp_kwh)) < 1.0
+
+    def test_heat_pump_increases_autoconsumo_vs_base(
+        self, hourly_production: ProductionData, config: dict
+    ) -> None:
+        """Adding HP kwh (daytime-heavy load) must raise self-consumption rate."""
+        common = dict(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8000.0, annual_consumption_kwh=3000.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            annual_production_kwh=7200.0,
+        )
+        si_base = SystemInput(**common)
+        si_hp = SystemInput(**common, heat_pump_kwh_annual=3500.0)
+
+        scale = 7200.0 / 49500.0
+        pd = ProductionData(
+            monthly_production_kwh=hourly_production.monthly_production_kwh * scale,
+            annual_production_kwh=7200.0,
+            source="synthetic",
+            hourly_production_kwh=hourly_production.hourly_production_kwh * scale,
+        )
+        result_base = compute_energy(si_base, pd, config)
+        result_hp = compute_energy(si_hp, pd, config)
+
+        assert result_hp.tasso_autoconsumo > result_base.tasso_autoconsumo, (
+            f"HP ({result_hp.tasso_autoconsumo:.1%}) should exceed base ({result_base.tasso_autoconsumo:.1%})"
+        )
+
+    def test_heat_pump_energy_balance_invariant(
+        self, hourly_production: ProductionData, config: dict
+    ) -> None:
+        """autoconsumo + immissione == production must hold with heat pump."""
+        si = SystemInput(
+            kwp=8.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=10000.0, annual_consumption_kwh=4000.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            annual_production_kwh=9600.0,
+            heat_pump_kwh_annual=3500.0,
+        )
+        scale = 9600.0 / 49500.0
+        pd = ProductionData(
+            monthly_production_kwh=hourly_production.monthly_production_kwh * scale,
+            annual_production_kwh=9600.0,
+            source="synthetic",
+            hourly_production_kwh=hourly_production.hourly_production_kwh * scale,
+        )
+        result = compute_energy(si, pd, config)
+        balance = abs(result.autoconsumo.sum() + result.immissione.sum() - result.production.sum())
+        assert balance < 0.01

@@ -25,3 +25,10 @@ load_profile_by_type:
   commercial: "commercial_default.json"
   industrial: "industrial_default.json"
   agricultural: "industrial_default.json"
+
+# Heat pump additive component (optional — used when SystemInput.heat_pump_kwh_annual > 0)
+# Blended on top of the base user_type profile. Works for all user types.
+# Default value: 3500 kWh/year (air-source HP, heating+cooling+DHW, 100m² Class C building, Central Italy)
+# Range: 2500 kWh (South/Zone C) to 4500 kWh (North/Zone E-F). Source: RSE/ENEA 2026.
+heat_pump_annual_kwh: 3500
+heat_pump_profile: "heat_pump_component.json"

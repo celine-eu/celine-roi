@@ -13,7 +13,7 @@ from celine.roi.capex_estimator import estimate_capex, load_panel_specs, max_pan
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_SPECS_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "config" / "panel_specs.yaml"
+_SPECS_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent.parent / "config" / "panel_specs.yaml"
 
 
 class CapexEstimateRequest(BaseModel):

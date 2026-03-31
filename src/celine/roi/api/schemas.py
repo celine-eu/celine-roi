@@ -129,6 +129,17 @@ class SystemInputRequest(BaseModel):
         default=None,
         description="WKT polygon of rooftop for Trentino Solar LIDAR API (Trentino only)",
     )
+    heat_pump_kwh_annual: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=50000.0,
+        description=(
+            "Additional annual electricity consumed by a heat pump in kWh. "
+            "When > 0, the HP load (daytime-heavy) is blended on top of the base "
+            "user_type profile. Works for all user types. "
+            "Typical Italian residential: 2500-4500 kWh/year. 0 = no heat pump."
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_loan_consistency(self) -> "SystemInputRequest":

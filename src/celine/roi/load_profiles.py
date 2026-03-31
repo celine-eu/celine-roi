@@ -102,3 +102,28 @@ def build_hourly_consumption(
     )
 
     return result
+
+
+def build_hourly_consumption_with_heat_pump(
+    annual_consumption_kwh: float,
+    base_profile_config: dict[str, Any],
+    heat_pump_kwh_annual: float,
+    heat_pump_profile_config: dict[str, Any],
+) -> np.ndarray:
+    """Build 8760 hourly consumption array blending a base profile with a heat pump component.
+
+    The heat pump load is built separately from its own profile (daytime-heavy) then
+    added to the base consumption. This works for any base user_type profile.
+
+    Args:
+        annual_consumption_kwh: Base annual consumption in kWh (excluding heat pump).
+        base_profile_config: Loaded profile config for the user_type (hourly + monthly).
+        heat_pump_kwh_annual: Additional annual electricity consumed by the heat pump in kWh.
+        heat_pump_profile_config: Loaded heat pump component profile config.
+
+    Returns:
+        Numpy array of shape (8760,) summing to annual_consumption_kwh + heat_pump_kwh_annual.
+    """
+    base = build_hourly_consumption(annual_consumption_kwh, base_profile_config)
+    hp = build_hourly_consumption(heat_pump_kwh_annual, heat_pump_profile_config)
+    return base + hp

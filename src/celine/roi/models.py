@@ -33,6 +33,9 @@ class SystemInput:
         location: Human-readable site label.
         abitazione_principale: Primary residence flag. Affects IRPEF deduction rate
             (50% for primary in 2026, 36% for other residential).
+        heat_pump_kwh_annual: Additional annual electricity consumed by a heat pump in kWh.
+            When > 0, the energy engine blends the base user_type load profile with
+            the heat_pump_component profile. Works for all user types. 0 = no heat pump.
     """
 
     kwp: float
@@ -51,6 +54,7 @@ class SystemInput:
     location: str = ""
     rooftop_wkt: str | None = None  # WKT polygon of rooftop (for Trentino Solar API)
     abitazione_principale: bool = True  # Primary residence — affects IRPEF deduction rate
+    heat_pump_kwh_annual: float = 0.0  # Additional HP load — 0 = no heat pump
 
 
 @dataclass(frozen=True)

@@ -16,7 +16,11 @@ from typing import Any
 
 import numpy as np
 
-from celine.roi.load_profiles import build_hourly_consumption, load_profile_config
+from celine.roi.load_profiles import (
+    build_hourly_consumption,
+    build_hourly_consumption_with_heat_pump,
+    load_profile_config,
+)
 from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 logger = logging.getLogger(__name__)
@@ -88,10 +92,26 @@ def _compute_hourly(
             "Set 'load_profile' in config or check config directory."
         )
     profile_config = load_profile_config(profile_path)
-    consumption = build_hourly_consumption(
-        annual_consumption_kwh=system_input.annual_consumption_kwh,
-        profile_config=profile_config,
-    )
+
+    if system_input.heat_pump_kwh_annual > 0:
+        hp_profile_name = config.get("heat_pump_profile", "heat_pump_component.json")
+        hp_profile_path = _CONFIG_DIR / "load_profiles" / hp_profile_name
+        if not hp_profile_path.exists():
+            raise FileNotFoundError(
+                f"Heat pump component profile not found: {hp_profile_path}"
+            )
+        hp_profile_config = load_profile_config(hp_profile_path)
+        consumption = build_hourly_consumption_with_heat_pump(
+            annual_consumption_kwh=system_input.annual_consumption_kwh,
+            base_profile_config=profile_config,
+            heat_pump_kwh_annual=system_input.heat_pump_kwh_annual,
+            heat_pump_profile_config=hp_profile_config,
+        )
+    else:
+        consumption = build_hourly_consumption(
+            annual_consumption_kwh=system_input.annual_consumption_kwh,
+            profile_config=profile_config,
+        )
 
     return _match_and_build_result(production, consumption, config)
 

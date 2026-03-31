@@ -35,6 +35,7 @@ def to_system_input(s: SystemInputRequest) -> SystemInput:
         location=s.location,
         rooftop_wkt=s.rooftop_wkt,
         abitazione_principale=s.abitazione_principale,
+        heat_pump_kwh_annual=s.heat_pump_kwh_annual,
     )
 
 

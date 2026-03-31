@@ -24,6 +24,41 @@ logger = logging.getLogger(__name__)
 _RAW_SOLAR = [0.049, 0.059, 0.078, 0.098, 0.118, 0.127, 0.127, 0.118, 0.088, 0.069, 0.039, 0.029]
 SOLAR_MONTHLY_FRACTIONS: np.ndarray = np.array(_RAW_SOLAR) / sum(_RAW_SOLAR)
 
+# Sunrise/sunset hours per month at ~46N latitude (Trentino)
+_DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+_SUNRISE = [7.5, 7.0, 6.5, 6.0, 5.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.0, 7.5]
+_SUNSET = [16.5, 17.5, 18.5, 19.5, 20.5, 21.0, 21.0, 20.0, 19.0, 17.5, 16.5, 16.0]
+
+
+def _build_synthetic_hourly(annual_kwh: float) -> np.ndarray:
+    """Build a synthetic 8760 hourly PV production array.
+
+    Uses a sinusoidal model with seasonal day length variation at 46N.
+    Normalized to match the requested annual total exactly.
+
+    Args:
+        annual_kwh: Desired annual production in kWh.
+
+    Returns:
+        8760-element numpy array of hourly production in kWh.
+    """
+    hourly = np.zeros(8760)
+    offset = 0
+    for month_idx, days in enumerate(_DAYS_PER_MONTH):
+        sr = _SUNRISE[month_idx]
+        ss = _SUNSET[month_idx]
+        for _day in range(days):
+            for hour in range(24):
+                if sr <= hour < ss:
+                    t_norm = (hour - sr) / (ss - sr)
+                    hourly[offset + hour] = np.sin(np.pi * t_norm)
+            offset += 24
+
+    raw_total = hourly.sum()
+    if raw_total > 0:
+        hourly = hourly * (annual_kwh / raw_total)
+    return hourly
+
 
 def detect_epsg(wkt: str) -> str:
     """Detect EPSG code from WKT coordinate magnitudes.
@@ -142,11 +177,14 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
             "Using manual production override: %.1f kWh/year (synthetic distribution)",
             system_input.annual_production_kwh,
         )
-        monthly = system_input.annual_production_kwh * SOLAR_MONTHLY_FRACTIONS
+        annual = system_input.annual_production_kwh
+        monthly = annual * SOLAR_MONTHLY_FRACTIONS
+        hourly = _build_synthetic_hourly(annual)
         return ProductionData(
             monthly_production_kwh=monthly,
-            annual_production_kwh=system_input.annual_production_kwh,
+            annual_production_kwh=annual,
             source="synthetic",
+            hourly_production_kwh=hourly,
         )
 
     # Trentino hybrid path: LIDAR annual total + PVGIS monthly shape
