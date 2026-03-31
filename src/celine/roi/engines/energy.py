@@ -11,6 +11,7 @@ Supports two modes:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "config"
+_CONFIG_DIR = Path(os.environ.get("CELINE_CONFIG_DIR", "config"))
 
 
 def compute_energy(
