@@ -98,6 +98,46 @@ class TestValidateModelWarnings:
         assert "low_degradation" in warn_names
 
 
+class TestHeatPumpValidation:
+    """Validation checks for heat pump sizing."""
+
+    def test_warns_when_heat_pump_kwh_exceeds_base_consumption(
+        self, reference_production, config
+    ) -> None:
+        """HP kWh > base consumption is implausible — should produce a warning."""
+        si = SystemInput(
+            kwp=45.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=45000.0, annual_consumption_kwh=4000.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=49500.0,
+            heat_pump_kwh_annual=5000.0,  # HP > base consumption → implausible
+        )
+        energy = compute_energy(si, reference_production, config)
+        incentives = compute_incentives(si, energy, config)
+        finance = compute_finance(si, incentives, config)
+        report = validate_model(si, energy, incentives, finance, config)
+        warn_names = [w[0] for w in report.warns]
+        assert "heat_pump_oversized" in warn_names
+
+    def test_no_warn_when_heat_pump_kwh_within_range(
+        self, reference_production, config
+    ) -> None:
+        """HP kWh <= base consumption is reasonable — no heat_pump_oversized warning."""
+        si = SystemInput(
+            kwp=45.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=45000.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=49500.0,
+            heat_pump_kwh_annual=3500.0,  # HP < base consumption → fine
+        )
+        energy = compute_energy(si, reference_production, config)
+        incentives = compute_incentives(si, energy, config)
+        finance = compute_finance(si, incentives, config)
+        report = validate_model(si, energy, incentives, finance, config)
+        warn_names = [w[0] for w in report.warns]
+        assert "heat_pump_oversized" not in warn_names
+
+
 class TestValidateModelInvariants:
     """Invariant checks."""
 

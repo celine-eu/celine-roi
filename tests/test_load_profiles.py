@@ -9,7 +9,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from celine.roi.load_profiles import build_hourly_consumption, load_profile_config
+from celine.roi.load_profiles import (
+    build_hourly_consumption,
+    build_hourly_consumption_with_heat_pump,
+    load_profile_config,
+)
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 PROFILE_PATH = CONFIG_DIR / "load_profiles" / "residential_default.json"
@@ -157,3 +161,77 @@ class TestLoadProfileConfigErrors:
         config = load_profile_config(PROFILE_PATH)
         with pytest.raises(ValueError, match="must be >= 0"):
             build_hourly_consumption(-100.0, config)
+
+
+HP_PROFILE_PATH = CONFIG_DIR / "load_profiles" / "heat_pump_component.json"
+
+
+class TestBuildHourlyConsumptionWithHeatPump:
+    """Tests for build_hourly_consumption_with_heat_pump()."""
+
+    @pytest.fixture()
+    def residential_config(self) -> dict:
+        return load_profile_config(PROFILE_PATH)
+
+    @pytest.fixture()
+    def hp_config(self) -> dict:
+        return load_profile_config(HP_PROFILE_PATH)
+
+    def test_total_sum_equals_base_plus_hp(
+        self, residential_config: dict, hp_config: dict
+    ) -> None:
+        """Result must sum to base_kwh + heat_pump_kwh."""
+        base_kwh = 3000.0
+        hp_kwh = 3500.0
+        result = build_hourly_consumption_with_heat_pump(
+            base_kwh, residential_config, hp_kwh, hp_config
+        )
+        assert abs(result.sum() - (base_kwh + hp_kwh)) < 0.01
+
+    def test_returns_8760_array(
+        self, residential_config: dict, hp_config: dict
+    ) -> None:
+        result = build_hourly_consumption_with_heat_pump(
+            3000.0, residential_config, 3500.0, hp_config
+        )
+        assert isinstance(result, np.ndarray)
+        assert len(result) == 8760
+
+    def test_zero_hp_kwh_equals_base_only(
+        self, residential_config: dict, hp_config: dict
+    ) -> None:
+        """With heat_pump_kwh=0, result must equal plain build_hourly_consumption."""
+        base_kwh = 3000.0
+        base_only = build_hourly_consumption(base_kwh, residential_config)
+        with_hp = build_hourly_consumption_with_heat_pump(
+            base_kwh, residential_config, 0.0, hp_config
+        )
+        np.testing.assert_allclose(with_hp, base_only)
+
+    def test_hp_shifts_daytime_share_upward(
+        self, residential_config: dict, hp_config: dict
+    ) -> None:
+        """Adding HP (daytime-heavy) must increase the share of consumption in solar hours (8-18).
+
+        Residential default is evening-heavy so solar hours share is low.
+        HP component is daytime-heavy so blending must raise that share.
+        """
+        base_kwh = 3000.0
+        hp_kwh = 3500.0
+        base_only = build_hourly_consumption(base_kwh, residential_config)
+        with_hp = build_hourly_consumption_with_heat_pump(
+            base_kwh, residential_config, hp_kwh, hp_config
+        )
+        # Solar hours: 08:00–18:00 (indices 8–17 in each 24h day)
+        solar_indices = list(range(8, 18))
+        first_week = 7 * 24
+
+        base_solar = sum(base_only[:first_week][h::24].sum() for h in solar_indices)
+        hp_solar = sum(with_hp[:first_week][h::24].sum() for h in solar_indices)
+
+        base_share = base_solar / base_only[:first_week].sum()
+        hp_share = hp_solar / with_hp[:first_week].sum()
+
+        assert hp_share > base_share, (
+            f"HP blend solar share ({hp_share:.2%}) should exceed residential base ({base_share:.2%})"
+        )
