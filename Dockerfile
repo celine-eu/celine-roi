@@ -18,7 +18,7 @@ RUN apt-get update \
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 # Copy manifests first for layer caching
-COPY pyproject.toml README.md uv.lock ./
+COPY pyproject.toml uv.lock ./
 
 # Install dependencies only — cached unless lock changes
 RUN uv sync --frozen --no-install-project --no-dev
