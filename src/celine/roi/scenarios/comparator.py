@@ -157,12 +157,13 @@ async def _run_with_production(
     """
     # Battery cost deduction (same logic as main.py)
     if system_input.battery_kwh > 0:
-        battery_cost_per_kwh: float = config.get("battery_cost_per_kwh", 500.0)
-        battery_cost = system_input.battery_kwh * battery_cost_per_kwh
+        from celine.roi.main import estimate_battery_cost
+
+        battery_cost = estimate_battery_cost(system_input.battery_kwh, config)
         pv_capex = max(0.0, system_input.capex - battery_cost)
         logger.info(
-            "Battery deduction: %.0f EUR → PV CAPEX: %.0f EUR",
-            battery_cost, pv_capex,
+            "Battery deduction: %.0f kWh → %.0f EUR → PV CAPEX: %.0f EUR",
+            system_input.battery_kwh, battery_cost, pv_capex,
         )
         system_input = dataclasses.replace(system_input, capex=pv_capex)
 

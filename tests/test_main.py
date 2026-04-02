@@ -32,11 +32,16 @@ class TestRunScenario:
         assert result.finance.irr > config["wacc"]
 
     async def test_battery_cost_deduction(self, reference_input, config) -> None:
-        """Battery cost should be deducted from CAPEX for PV-only analysis."""
+        """Battery cost (power law) should be deducted from CAPEX."""
         battery_kwh = 10.0
-        battery_cost_per_kwh = config.get("battery_cost_per_kwh", 500.0)
         original_capex = 15000.0
-        expected_pv_capex = original_capex - (battery_kwh * battery_cost_per_kwh)
+
+        # Power law: cost = base * kwh^exponent
+        base = config.get("battery_cost_base", 2400.0)
+        exponent = config.get("battery_cost_exponent", 0.53)
+        floor = config.get("battery_cost_floor", 1500.0)
+        expected_battery_cost = max(floor, base * (battery_kwh ** exponent))
+        expected_pv_capex = original_capex - expected_battery_cost
 
         input_with_battery = SystemInput(
             kwp=45.0,

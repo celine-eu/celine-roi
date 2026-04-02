@@ -20,8 +20,15 @@ cer_virtual_consumption_rate: 1.0  # Fraction of immissione virtually consumed b
                                     # 1.0 = all exported energy matched by CER members (optimistic)
                                     # 0.5 = only half is matched (realistic for small CERs)
 
-# Battery cost estimation (used only for CAPEX deduction, no energy dispatch)
-battery_cost_per_kwh: 500    # EUR/kWh installed (range: 400-600 for residential Li-ion, IT 2025-2026)
+# Battery cost estimation (power law, used only for CAPEX deduction, no energy dispatch)
+# Fit on Italian market data 2025-2026 for residential Li-ion (installed):
+#   5 kWh  → ~5,500 EUR  (1,100 EUR/kWh)
+#  10 kWh  → ~8,100 EUR    (810 EUR/kWh)
+#  15 kWh  → ~10,050 EUR   (670 EUR/kWh)
+#  20 kWh  → ~11,700 EUR   (586 EUR/kWh)
+battery_cost_base: 2400      # EUR intercept at 1 kWh
+battery_cost_exponent: 0.53  # Sub-linear exponent (economies of scale)
+battery_cost_floor: 1500     # EUR minimum (micro-battery + installation labor)
 
 # Load profile
 load_profile: "residential_default.json"
