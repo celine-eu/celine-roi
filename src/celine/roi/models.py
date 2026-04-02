@@ -36,6 +36,9 @@ class SystemInput:
         heat_pump_kwh_annual: Additional annual electricity consumed by a heat pump in kWh.
             When > 0, the energy engine blends the base user_type load profile with
             the heat_pump_component profile. Works for all user types. 0 = no heat pump.
+        battery_kwh: Battery storage capacity in kWh. When > 0, the estimated battery
+            cost is subtracted from capex to isolate PV-only investment for financial
+            analysis. Does NOT affect energy matching (no dispatch model yet).
     """
 
     kwp: float
@@ -55,6 +58,7 @@ class SystemInput:
     rooftop_wkt: str | None = None  # WKT polygon of rooftop (for Trentino Solar API)
     abitazione_principale: bool = True  # Primary residence — affects IRPEF deduction rate
     heat_pump_kwh_annual: float = 0.0  # Additional HP load — 0 = no heat pump
+    battery_kwh: float = 0.0  # Battery capacity — used for cost deduction only
 
 
 @dataclass(frozen=True)

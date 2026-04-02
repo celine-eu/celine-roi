@@ -34,6 +34,20 @@ async def run_scenario(
     """
     logger.info("Starting scenario: %s, %.1f kWp", system_input.location, system_input.kwp)
 
+    # Battery cost deduction: subtract estimated battery cost from CAPEX
+    # to isolate PV-only investment. No energy dispatch model yet.
+    if system_input.battery_kwh > 0:
+        battery_cost_per_kwh: float = config.get("battery_cost_per_kwh", 500.0)
+        battery_cost = system_input.battery_kwh * battery_cost_per_kwh
+        pv_capex = max(0.0, system_input.capex - battery_cost)
+        logger.info(
+            "Battery deduction: %.0f kWh × %.0f EUR/kWh = %.0f EUR → "
+            "PV CAPEX: %.0f EUR (was %.0f EUR)",
+            system_input.battery_kwh, battery_cost_per_kwh, battery_cost,
+            pv_capex, system_input.capex,
+        )
+        system_input = replace(system_input, capex=pv_capex)
+
     production_data = await fetch_production(system_input)
     logger.info(
         "Production: %.0f kWh/year (source: %s)",

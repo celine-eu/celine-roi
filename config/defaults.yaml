@@ -16,6 +16,12 @@ inverter_replacement_year: 12 # year of operation (range: 10-15)
 # Inverter cost is computed by power law in engines/finance.py (not a config value)
 # Formula: 180 * kWp^0.82, floor 1200 EUR, cap 120000 EUR
 sharing_ratio: 0.55          # CER sharing ratio (range: 0.40-0.70)
+cer_virtual_consumption_rate: 1.0  # Fraction of immissione virtually consumed by CER (0-1)
+                                    # 1.0 = all exported energy matched by CER members (optimistic)
+                                    # 0.5 = only half is matched (realistic for small CERs)
+
+# Battery cost estimation (used only for CAPEX deduction, no energy dispatch)
+battery_cost_per_kwh: 500    # EUR/kWh installed (range: 400-600 for residential Li-ion, IT 2025-2026)
 
 # Load profile
 load_profile: "residential_default.json"

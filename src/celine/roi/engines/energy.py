@@ -137,7 +137,8 @@ def _match_and_build_result(
     prelievo = consumption - autoconsumo
 
     sharing_ratio = config["sharing_ratio"]
-    energia_condivisa = immissione * sharing_ratio
+    cer_virtual_rate = config.get("cer_virtual_consumption_rate", 1.0)
+    energia_condivisa = immissione * sharing_ratio * cer_virtual_rate
 
     total_production = production.sum()
     tasso_autoconsumo = float(autoconsumo.sum() / total_production) if total_production > 0 else 0.0

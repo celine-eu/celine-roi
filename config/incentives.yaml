@@ -28,5 +28,7 @@ detrazione_rate_other: 0.36         # Other residential (2026)
 detrazione_years: 10                # 10 equal annual installments
 detrazione_max_eur: 96000           # Cap per unita immobiliare
 detrazione_max_kwp: 20.0            # Only systems <= 20 kWp
+detrazione_include_iva: true        # When true, deductible base = CAPEX × (1 + IVA rate)
+                                    # Italian IRPEF deduction applies to gross amount (IVA inclusa)
 detrazione_eligible_types:
   - residential

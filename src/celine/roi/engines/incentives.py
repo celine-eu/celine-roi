@@ -66,6 +66,7 @@ def compute_incentives(
     monthly_production = energy_result.production.copy()
     monthly_consumption = energy_result.consumption.copy()
     sharing = config["sharing_ratio"]
+    cer_virtual_rate: float = config.get("cer_virtual_consumption_rate", 1.0)
 
     # Determine user type: business gets depreciation, residential gets detrazione
     detrazione_eligible_types: list[str] = config.get(
@@ -102,11 +103,14 @@ def compute_incentives(
             ammortamento[idx] = amount
             cumulative_dep += amount
 
-    # Compute detrazione IRPEF (residential users only)
+    # Compute detrazione IRPEF
+    # Configurable: rate, years, IVA inclusion, and skip flag.
+    # When detrazione_enabled is explicitly False, skip even for residential.
     det_max_kwp: float = config.get("detrazione_max_kwp", 20.0)
     det_years: int = config.get("detrazione_years", 10)
     det_max_eur: float = config.get("detrazione_max_eur", 96_000)
     detrazione_enabled: bool = config.get("detrazione_enabled", True)
+    det_include_iva: bool = config.get("detrazione_include_iva", True)
 
     is_det_eligible: bool = (
         detrazione_enabled
@@ -115,12 +119,22 @@ def compute_incentives(
     )
 
     if is_det_eligible:
-        if system_input.abitazione_principale:
-            det_rate: float = config.get("detrazione_rate_primary", 0.50)
+        # Per-request rate override takes precedence over primary/other split
+        det_rate_override = config.get("detrazione_rate")
+        if det_rate_override is not None:
+            det_rate: float = det_rate_override
+        elif system_input.abitazione_principale:
+            det_rate = config.get("detrazione_rate_primary", 0.50)
         else:
             det_rate = config.get("detrazione_rate_other", 0.36)
 
-        deductible_base: float = min(capex, det_max_eur)
+        # Deductible base: optionally include IVA (Italian IRPEF applies to gross amount)
+        if det_include_iva:
+            iva_rate: float = config.get("iva_impianto", 0.10)
+            deductible_base = min(capex * (1.0 + iva_rate), det_max_eur)
+        else:
+            deductible_base = min(capex, det_max_eur)
+
         annual_credit: float = (deductible_base * det_rate) / det_years
         for idx in range(min(det_years, useful_life)):
             detrazione_irpef[idx] = annual_credit
@@ -144,7 +158,7 @@ def compute_incentives(
         prod_year = float(monthly_prod_degraded.sum())
         autoconsumo_year = float(monthly_auto.sum())
         immissione_year = float(monthly_imm.sum())
-        condivisa_year = immissione_year * sharing
+        condivisa_year = immissione_year * sharing * cer_virtual_rate
 
         production_degraded[idx] = prod_year
 
