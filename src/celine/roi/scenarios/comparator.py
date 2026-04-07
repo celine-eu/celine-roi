@@ -115,6 +115,11 @@ def _apply_overrides(
     new_config = copy.deepcopy(base_config)
     new_config.update(cfg_overrides)
 
+    # When load_profile is explicitly overridden, remove per-type map
+    # so the override takes effect (mirrors API deps behavior)
+    if "load_profile" in cfg_overrides:
+        new_config.pop("load_profile_by_type", None)
+
     return new_input, new_config
 
 
@@ -150,6 +155,18 @@ async def _run_with_production(
     Returns:
         ScenarioResult with all pipeline stages.
     """
+    # Battery cost deduction (same logic as main.py)
+    if system_input.battery_kwh > 0:
+        from celine.roi.main import estimate_battery_cost
+
+        battery_cost = estimate_battery_cost(system_input.battery_kwh, config)
+        pv_capex = max(0.0, system_input.capex - battery_cost)
+        logger.info(
+            "Battery deduction: %.0f kWh → %.0f EUR → PV CAPEX: %.0f EUR",
+            system_input.battery_kwh, battery_cost, pv_capex,
+        )
+        system_input = dataclasses.replace(system_input, capex=pv_capex)
+
     if cached_production is not None:
         production_data = cached_production
         logger.info(

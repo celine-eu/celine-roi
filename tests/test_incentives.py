@@ -169,9 +169,10 @@ class TestDetrazioneIrpef:
     def test_detrazione_primary_residence(
         self, residential_input, residential_energy, config,
     ) -> None:
-        """Primary residence: 50% of CAPEX / 10 years."""
+        """Primary residence: 50% of CAPEX+IVA / 10 years."""
         result = compute_incentives(residential_input, residential_energy, config)
-        expected = 8400.0 * 0.50 / 10  # 420 EUR/year
+        iva_rate = config.get("iva_impianto", 0.10)
+        expected = 8400.0 * (1.0 + iva_rate) * 0.50 / 10  # 462 EUR/year
         assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
 
     def test_detrazione_10_years_only(
@@ -183,7 +184,7 @@ class TestDetrazioneIrpef:
         assert all(result.detrazione_irpef[10:] == 0.0)
 
     def test_detrazione_non_primary(self, residential_energy, config) -> None:
-        """Non-primary residence: 36% rate instead of 50%."""
+        """Non-primary residence: 36% rate instead of 50%, IVA-inclusive base."""
         si = SystemInput(
             kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
             capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
@@ -192,7 +193,8 @@ class TestDetrazioneIrpef:
             abitazione_principale=False,
         )
         result = compute_incentives(si, residential_energy, config)
-        expected = 8400.0 * 0.36 / 10  # 302.40 EUR/year
+        iva_rate = config.get("iva_impianto", 0.10)
+        expected = 8400.0 * (1.0 + iva_rate) * 0.36 / 10  # 332.64 EUR/year
         assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
 
     def test_detrazione_cap_at_96000(self, residential_energy, config) -> None:
@@ -265,3 +267,114 @@ class TestDepreciationGating:
         result = compute_incentives(reference_input, energy_result, config)
         assert result.ammortamento[0] > 0
         assert result.tax_shield[0] > 0
+
+
+class TestDetrazioneConfigurable:
+    """Tests for configurable detrazione rate and IVA inclusion."""
+
+    @pytest.fixture()
+    def residential_input(self) -> SystemInput:
+        """Small residential system for detrazione tests."""
+        return SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=True,
+        )
+
+    @pytest.fixture()
+    def residential_energy(self, residential_input: SystemInput, config: dict):
+        from celine.roi.pvgis_client import SOLAR_MONTHLY_FRACTIONS
+        pd = ProductionData(
+            monthly_production_kwh=7200.0 * SOLAR_MONTHLY_FRACTIONS,
+            annual_production_kwh=7200.0,
+            source="synthetic",
+        )
+        return compute_energy(residential_input, pd, config)
+
+    def test_detrazione_rate_override(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """With detrazione_rate=0.40 in config, rate should be 40% regardless of abitazione_principale."""
+        config_override = {**config, "detrazione_rate": 0.40}
+        result = compute_incentives(residential_input, residential_energy, config_override)
+
+        iva_rate = config.get("iva_impianto", 0.10)
+        expected = 8400.0 * (1.0 + iva_rate) * 0.40 / 10
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_rate_override_non_primary(
+        self, residential_energy, config,
+    ) -> None:
+        """detrazione_rate should override even for non-primary residence."""
+        si = SystemInput(
+            kwp=6.0, latitude=45.9, longitude=11.3, tilt=30.0, azimuth=0.0,
+            capex=8400.0, annual_consumption_kwh=3500.0, user_type="residential",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0,
+            loan_duration_years=0, annual_production_kwh=7200.0,
+            abitazione_principale=False,
+        )
+
+        config_override = {**config, "detrazione_rate": 0.40}
+        result = compute_incentives(si, residential_energy, config_override)
+
+        iva_rate = config.get("iva_impianto", 0.10)
+        expected = 8400.0 * (1.0 + iva_rate) * 0.40 / 10
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_iva_excluded(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """With detrazione_include_iva=False, base should be CAPEX only (no IVA)."""
+        config_no_iva = {**config, "detrazione_include_iva": False}
+        result = compute_incentives(residential_input, residential_energy, config_no_iva)
+
+        expected = 8400.0 * 0.50 / 10  # 420 EUR/year (no IVA multiplier)
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_iva_included(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """With detrazione_include_iva=True (default), base should be CAPEX * (1 + IVA)."""
+        config_with_iva = {**config, "detrazione_include_iva": True}
+        result = compute_incentives(residential_input, residential_energy, config_with_iva)
+
+        iva_rate = config.get("iva_impianto", 0.10)
+        expected = 8400.0 * (1.0 + iva_rate) * 0.50 / 10  # 462 EUR/year
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+    def test_detrazione_iva_excluded_with_rate_override(
+        self, residential_input, residential_energy, config,
+    ) -> None:
+        """IVA exclusion should work together with rate override."""
+        config_custom = {
+            **config,
+            "detrazione_include_iva": False,
+            "detrazione_rate": 0.40,
+        }
+        result = compute_incentives(residential_input, residential_energy, config_custom)
+
+        expected = 8400.0 * 0.40 / 10  # 336 EUR/year (no IVA, custom rate)
+        assert result.detrazione_irpef[0] == pytest.approx(expected, rel=1e-3)
+
+
+class TestCerVirtualRateMultiYear:
+    """Verify cer_virtual_consumption_rate is applied in all 25 years."""
+
+    def test_cer_virtual_rate_reduces_all_years(
+        self, reference_input, energy_result, config,
+    ) -> None:
+        """CER TIP should be halved in ALL years when virtual rate is 0.5."""
+        result_full = compute_incentives(reference_input, energy_result, config)
+
+        config_half = {**config, "cer_virtual_consumption_rate": 0.5}
+        result_half = compute_incentives(reference_input, energy_result, config_half)
+
+        # Check year 1 AND year 10 (mid-life) — both should be ~50%
+        for year_idx in [0, 9, 19]:
+            if result_full.cer_tip[year_idx] > 0:
+                ratio = result_half.cer_tip[year_idx] / result_full.cer_tip[year_idx]
+                assert ratio == pytest.approx(0.5, rel=1e-3), (
+                    f"Year {year_idx + 1}: CER TIP ratio {ratio:.4f}, expected 0.5"
+                )

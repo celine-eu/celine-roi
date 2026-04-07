@@ -76,7 +76,33 @@ class ConfigOverrides(BaseModel):
     )
     detrazione_enabled: bool | None = Field(
         default=None,
-        description="Enable/disable residential IRPEF deduction (default: True when eligible)",
+        description="Enable/disable IRPEF deduction (default: True when eligible). "
+                    "Set False to skip even for residential users.",
+    )
+    detrazione_rate: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Override IRPEF deduction rate (e.g. 0.50 = 50%). "
+                    "Overrides both primary/other rates.",
+    )
+    detrazione_years: int | None = Field(
+        default=None,
+        ge=1,
+        le=30,
+        description="Override number of years for IRPEF deduction installments (default: 10)",
+    )
+    detrazione_include_iva: bool | None = Field(
+        default=None,
+        description="When true, deductible base = CAPEX × (1 + IVA rate). Default: true.",
+    )
+    cer_virtual_consumption_rate: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Fraction of grid-exported energy virtually consumed within CER (0-1). "
+                    "1.0 = all exported matched by CER members (optimistic). "
+                    "0.5 = only half matched (realistic for small CERs).",
     )
 
 
@@ -138,6 +164,18 @@ class SystemInputRequest(BaseModel):
             "When > 0, the HP load (daytime-heavy) is blended on top of the base "
             "user_type profile. Works for all user types. "
             "Typical Italian residential: 2500-4500 kWh/year. 0 = no heat pump."
+        ),
+    )
+    battery_kwh: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=200.0,
+        description=(
+            "Battery storage capacity in kWh. When > 0, estimated battery cost "
+            "(based on battery_cost_per_kwh config) is subtracted from CAPEX to "
+            "isolate PV-only investment for financial analysis. "
+            "Does NOT affect energy matching (no dispatch model yet). "
+            "Typical residential: 5-15 kWh. 0 = no battery."
         ),
     )
 

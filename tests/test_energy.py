@@ -130,6 +130,32 @@ class TestComputeEnergy:
         result = compute_energy(reference_input, reference_production, config)
         assert 0.0 <= result.tasso_autoconsumo <= 1.0
 
+    def test_cer_virtual_consumption_rate_reduction(
+        self, reference_input: SystemInput, reference_production: ProductionData, config: dict
+    ) -> None:
+        """With cer_virtual_consumption_rate=0.5, energia_condivisa should be halved."""
+        result_default = compute_energy(reference_input, reference_production, config)
+
+        config_reduced = {**config, "cer_virtual_consumption_rate": 0.5}
+        result_reduced = compute_energy(reference_input, reference_production, config_reduced)
+
+        expected_condivisa = result_default.energia_condivisa * 0.5
+        np.testing.assert_allclose(result_reduced.energia_condivisa, expected_condivisa, atol=0.01)
+
+    def test_cer_virtual_consumption_rate_backward_compatible(
+        self, reference_input: SystemInput, reference_production: ProductionData, config: dict
+    ) -> None:
+        """With cer_virtual_consumption_rate=1.0 (default), behavior should match original."""
+        config_with_rate = {**config, "cer_virtual_consumption_rate": 1.0}
+        result_with_rate = compute_energy(reference_input, reference_production, config_with_rate)
+        result_default = compute_energy(reference_input, reference_production, config)
+
+        np.testing.assert_allclose(
+            result_with_rate.energia_condivisa,
+            result_default.energia_condivisa,
+            atol=0.01
+        )
+
 
 class TestComputeEnergyEdgeCases:
     """Edge case tests for energy engine."""

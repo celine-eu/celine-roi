@@ -11,6 +11,7 @@ Supports two modes:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +26,7 @@ from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent / "config"
+_CONFIG_DIR = Path(os.environ.get("CELINE_CONFIG_DIR", "config"))
 
 
 def compute_energy(
@@ -136,7 +137,8 @@ def _match_and_build_result(
     prelievo = consumption - autoconsumo
 
     sharing_ratio = config["sharing_ratio"]
-    energia_condivisa = immissione * sharing_ratio
+    cer_virtual_rate = config.get("cer_virtual_consumption_rate", 1.0)
+    energia_condivisa = immissione * sharing_ratio * cer_virtual_rate
 
     total_production = production.sum()
     tasso_autoconsumo = float(autoconsumo.sum() / total_production) if total_production > 0 else 0.0

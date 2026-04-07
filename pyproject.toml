@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "celine-roi"
-version = "0.1.0"
+version = "1.2.0"
 description = "Financial decision engine for Italian PV systems"
 requires-python = ">=3.11"
 dependencies = [
@@ -26,8 +26,12 @@ celine-roi = "celine.roi.cli:main"
 where = ["src"]
 namespaces = true
 
+[tool.uv]
+package = true
+
 [dependency-groups]
 dev = [
+    "python-semantic-release>=10.5.3",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
@@ -35,6 +39,30 @@ dev = [
     "black>=24.0",
     "mypy>=1.8",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+
+build_command = """
+    uv lock --upgrade-package "$PACKAGE_NAME"
+    git add uv.lock
+    uv build
+"""
+
+branch = "main"
+changelog_file = "CHANGELOG.md"
+tag_format = "v{version}"
+commit_parser = "conventional"
+
+upload_to_release = false
+upload_to_pypi = false
+commit_version_number = false
+
+[tool.semantic_release.commit_parser_options]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "up"]
+parse_squash_commits = true
+ignore_merge_commits = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
