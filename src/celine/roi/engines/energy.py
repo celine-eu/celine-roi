@@ -128,7 +128,69 @@ def _compute_hourly(
             profile_config=profile_config,
         )
 
+    # Forced autoconsumo rate: bypass hourly matching and split at a fixed rate
+    forced_rate = config.get("forced_tasso_autoconsumo")
+    if forced_rate is not None:
+        return _forced_autoconsumo(production, consumption, forced_rate, config)
+
     return _match_and_build_result(production, consumption, config)
+
+
+def _forced_autoconsumo(
+    production: np.ndarray,
+    consumption: np.ndarray,
+    rate: float,
+    config: dict[str, Any],
+) -> EnergyResult:
+    """Build EnergyResult with a fixed self-consumption rate.
+
+    Used for "ideal scenario" comparisons. Distributes autoconsumo
+    proportionally across periods based on production shape.
+
+    Args:
+        production: Per-period production in kWh.
+        consumption: Per-period consumption in kWh.
+        rate: Forced self-consumption rate (0.0–1.0).
+        config: Configuration dict containing sharing_ratio.
+
+    Returns:
+        EnergyResult with the forced rate applied.
+    """
+    rate = max(0.0, min(1.0, rate))
+    total_production = float(production.sum())
+
+    autoconsumo_total = total_production * rate
+    # Distribute proportionally to production shape
+    if total_production > 0:
+        autoconsumo = production * rate
+    else:
+        autoconsumo = np.zeros_like(production)
+
+    # Cap autoconsumo at consumption per period
+    autoconsumo = np.minimum(autoconsumo, consumption)
+    immissione = production - autoconsumo
+    prelievo = consumption - autoconsumo
+
+    sharing_ratio = config["sharing_ratio"]
+    cer_virtual_rate = config.get("cer_virtual_consumption_rate", 1.0)
+    energia_condivisa = immissione * sharing_ratio * cer_virtual_rate
+
+    tasso = float(autoconsumo.sum() / total_production) if total_production > 0 else 0.0
+
+    logger.info(
+        "Forced autoconsumo rate=%.1f%%: actual=%.1f%% (capped by consumption)",
+        rate * 100, tasso * 100,
+    )
+
+    return EnergyResult(
+        production=production,
+        consumption=consumption,
+        autoconsumo=autoconsumo,
+        immissione=immissione,
+        prelievo=prelievo,
+        energia_condivisa=energia_condivisa,
+        tasso_autoconsumo=tasso,
+    )
 
 
 def _match_and_build_result(

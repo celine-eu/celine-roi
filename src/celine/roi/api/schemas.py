@@ -104,6 +104,13 @@ class ConfigOverrides(BaseModel):
                     "1.0 = all exported matched by CER members (optimistic). "
                     "0.5 = only half matched (realistic for small CERs).",
     )
+    forced_tasso_autoconsumo: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Force a fixed self-consumption rate (0-1), bypassing hourly matching. "
+                    "Used for ideal scenario comparisons (e.g. 0.70 = 70%).",
+    )
 
 
 # ── System input request ───────────────────────────────────────────────────────

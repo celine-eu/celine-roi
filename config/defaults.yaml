@@ -19,6 +19,8 @@ sharing_ratio: 0.55          # CER sharing ratio (range: 0.40-0.70)
 cer_virtual_consumption_rate: 1.0  # Fraction of immissione virtually consumed by CER (0-1)
                                     # 1.0 = all exported energy matched by CER members (optimistic)
                                     # 0.5 = only half is matched (realistic for small CERs)
+forced_tasso_autoconsumo:            # Force a fixed self-consumption rate (0-1), null = use hourly matching
+                                    # Used for "scenario ideale" comparisons (e.g. 0.70 = 70%)
 
 # Battery cost estimation (power law, used only for CAPEX deduction, no energy dispatch)
 # Fit on Italian market data 2025-2026 for residential Li-ion (installed):
