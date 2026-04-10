@@ -21,6 +21,8 @@ cer_virtual_consumption_rate: 1.0  # Fraction of immissione virtually consumed b
                                     # 0.5 = only half is matched (realistic for small CERs)
 forced_tasso_autoconsumo:            # Force a fixed self-consumption rate (0-1), null = use hourly matching
                                     # Used for "scenario ideale" comparisons (e.g. 0.70 = 70%)
+optimize_profile:                    # When true, shift 30% of consumption to solar hours (9-16h)
+                                    # Simulates behavioral optimization (appliances during daytime)
 
 # Battery cost estimation (power law, used only for CAPEX deduction, no energy dispatch)
 # Fit on Italian market data 2025-2026 for residential Li-ion (installed):

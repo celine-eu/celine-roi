@@ -22,6 +22,7 @@ from celine.roi.load_profiles import (
     build_hourly_consumption_with_heat_pump,
     load_meter_data_profile,
     load_profile_config,
+    optimize_coefficients,
     profile_from_manual_hourly,
 )
 from celine.roi.models import EnergyResult, ProductionData, SystemInput
@@ -108,6 +109,15 @@ def _compute_hourly(
             )
         profile_config = load_profile_config(profile_path)
 
+    # Optimize profile: shift consumption toward solar hours
+    if config.get("optimize_profile"):
+        profile_config = dict(profile_config)
+        profile_config["hourly_coefficients"] = optimize_coefficients(
+            profile_config["hourly_coefficients"],
+            shift_fraction=0.30,
+        )
+        logger.info("Applied solar-optimized consumption profile (30%% shift)")
+
     if system_input.heat_pump_kwh_annual > 0:
         hp_profile_name = config.get("heat_pump_profile", "heat_pump_component.json")
         hp_profile_path = _CONFIG_DIR / "load_profiles" / hp_profile_name
@@ -159,17 +169,13 @@ def _forced_autoconsumo(
     rate = max(0.0, min(1.0, rate))
     total_production = float(production.sum())
 
-    autoconsumo_total = total_production * rate
-    # Distribute proportionally to production shape
-    if total_production > 0:
-        autoconsumo = production * rate
-    else:
-        autoconsumo = np.zeros_like(production)
+    # "Scenario ideale": assume consumption is high enough to achieve the
+    # target rate.  Scale consumption up so that min(prod*rate, cons) = prod*rate.
+    ideal_consumption = np.maximum(consumption, production * rate)
 
-    # Cap autoconsumo at consumption per period
-    autoconsumo = np.minimum(autoconsumo, consumption)
+    autoconsumo = production * rate
     immissione = production - autoconsumo
-    prelievo = consumption - autoconsumo
+    prelievo = ideal_consumption - autoconsumo
 
     sharing_ratio = config["sharing_ratio"]
     cer_virtual_rate = config.get("cer_virtual_consumption_rate", 1.0)
@@ -178,18 +184,18 @@ def _forced_autoconsumo(
     tasso = float(autoconsumo.sum() / total_production) if total_production > 0 else 0.0
 
     logger.info(
-        "Forced autoconsumo rate=%.1f%%: actual=%.1f%% (capped by consumption)",
-        rate * 100, tasso * 100,
+        "Forced autoconsumo rate=%.1f%% applied (ideal scenario)",
+        rate * 100,
     )
 
     return EnergyResult(
         production=production,
-        consumption=consumption,
+        consumption=ideal_consumption,
         autoconsumo=autoconsumo,
         immissione=immissione,
         prelievo=prelievo,
         energia_condivisa=energia_condivisa,
-        tasso_autoconsumo=tasso,
+        tasso_autoconsumo=rate,
     )
 
 

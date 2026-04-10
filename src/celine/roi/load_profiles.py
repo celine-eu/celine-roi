@@ -245,6 +245,47 @@ def load_meter_data_profile(folder_path: Path) -> dict[str, Any]:
     }
 
 
+def optimize_coefficients(
+    coefficients: list[float],
+    shift_fraction: float = 0.30,
+) -> list[float]:
+    """Shift consumption from non-solar hours toward solar hours.
+
+    Simulates realistic behavioral optimization: running appliances
+    during daylight (dishwasher, washing machine, EV charging).
+
+    Args:
+        coefficients: 24 normalized hourly coefficients (sum=1.0).
+        shift_fraction: Fraction of non-solar consumption to shift (0.0–1.0).
+
+    Returns:
+        New 24-element list of coefficients (sum=1.0).
+    """
+    solar_hours = set(range(9, 16))  # 09:00–15:59
+    result = list(coefficients)
+
+    non_solar_total = sum(result[h] for h in range(24) if h not in solar_hours)
+    if non_solar_total <= 0:
+        return result
+
+    shift_amount = non_solar_total * shift_fraction
+
+    # Remove from non-solar proportionally
+    for h in range(24):
+        if h not in solar_hours:
+            result[h] -= (result[h] / non_solar_total) * shift_amount
+
+    # Add to solar proportionally (or uniformly if solar is zero)
+    solar_total = sum(result[h] for h in solar_hours)
+    for h in solar_hours:
+        if solar_total > 0:
+            result[h] += (result[h] / solar_total) * shift_amount
+        else:
+            result[h] += shift_amount / len(solar_hours)
+
+    return result
+
+
 def build_hourly_consumption_with_heat_pump(
     annual_consumption_kwh: float,
     base_profile_config: dict[str, Any],
