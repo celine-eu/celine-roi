@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "celine-roi"
-version = "1.5.0"
+version = "1.6.0"
 description = "Financial decision engine for Italian PV systems"
 requires-python = ">=3.11"
 dependencies = [
