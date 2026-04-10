@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 # ── Shared literals ────────────────────────────────────────────────────────────
 
 UserType = Literal["residential", "office", "commercial", "industrial", "agricultural"]
-Regime = Literal["RID", "RID_CER"]
+Regime = Literal["RID", "CER", "RID_CER"]
 
 
 # ── Config overrides ───────────────────────────────────────────────────────────
