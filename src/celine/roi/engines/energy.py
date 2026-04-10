@@ -20,7 +20,9 @@ import numpy as np
 from celine.roi.load_profiles import (
     build_hourly_consumption,
     build_hourly_consumption_with_heat_pump,
+    load_meter_data_profile,
     load_profile_config,
+    profile_from_manual_hourly,
 )
 from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
@@ -80,19 +82,31 @@ def _compute_hourly(
             f"hourly_production_kwh must have 8760 elements, got {len(production)}"
         )
 
-    profile_map = config.get("load_profile_by_type", {})
-    profile_name = profile_map.get(
-        system_input.user_type,
-        config.get("load_profile", "residential_default.json"),
-    )
-    profile_path = _CONFIG_DIR / "load_profiles" / profile_name
-
-    if not profile_path.exists():
-        raise FileNotFoundError(
-            f"Load profile not found: {profile_path}. "
-            "Set 'load_profile' in config or check config directory."
+    # Profile selection priority:
+    # 1. custom_hourly_kwh (manual 24h values from webapp)
+    # 2. custom_profile_dir (smart meter data folder)
+    # 3. user_type-based profile from config
+    if system_input.custom_hourly_kwh is not None:
+        profile_config = profile_from_manual_hourly(system_input.custom_hourly_kwh)
+        logger.info("Using manual 24h consumption profile")
+    elif system_input.custom_profile_dir is not None:
+        meter_path = _CONFIG_DIR / "load_profiles" / system_input.custom_profile_dir
+        profile_config = load_meter_data_profile(meter_path)
+        logger.info("Using meter data profile from %s", system_input.custom_profile_dir)
+    else:
+        profile_map = config.get("load_profile_by_type", {})
+        profile_name = profile_map.get(
+            system_input.user_type,
+            config.get("load_profile", "residential_default.json"),
         )
-    profile_config = load_profile_config(profile_path)
+        profile_path = _CONFIG_DIR / "load_profiles" / profile_name
+
+        if not profile_path.exists():
+            raise FileNotFoundError(
+                f"Load profile not found: {profile_path}. "
+                "Set 'load_profile' in config or check config directory."
+            )
+        profile_config = load_profile_config(profile_path)
 
     if system_input.heat_pump_kwh_annual > 0:
         hp_profile_name = config.get("heat_pump_profile", "heat_pump_component.json")

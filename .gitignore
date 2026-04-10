@@ -10,3 +10,5 @@ build/
 .claude
 .pytest_cache
 .env
+docs
+personal_profile

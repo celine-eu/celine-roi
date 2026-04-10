@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 _RAW_SOLAR = [0.049, 0.059, 0.078, 0.098, 0.118, 0.127, 0.127, 0.118, 0.088, 0.069, 0.039, 0.029]
 SOLAR_MONTHLY_FRACTIONS: np.ndarray = np.array(_RAW_SOLAR) / sum(_RAW_SOLAR)
 
+# Approximate specific yield for synthetic fallback when PVGIS is unreachable.
+# Conservative estimate for 46°N, 30° tilt, south-facing (~1200 kWh/kWp).
+_SYNTHETIC_YIELD_KWH_KWP = 1200.0
+
 # Sunrise/sunset hours per month at ~46N latitude (Trentino)
 _DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 _SUNRISE = [7.5, 7.0, 6.5, 6.0, 5.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.0, 7.5]
@@ -97,7 +101,7 @@ def _fetch_pvgis_monthly_blocking(
         latitude: Site latitude.
         longitude: Site longitude.
         tilt: Panel tilt in degrees.
-        azimuth: Panel azimuth (0=south in PVGIS convention).
+        azimuth: Panel azimuth (0=south, 90=west, -90=east — PVGIS convention).
         kwp: Installed capacity in kWp.
 
     Returns:
@@ -109,18 +113,30 @@ def _fetch_pvgis_monthly_blocking(
         ConnectionError: If the PVGIS API is unreachable.
         ValueError: If the API returns invalid data.
     """
+    import requests
     from pvlib.iotools import get_pvgis_hourly
 
-    result = get_pvgis_hourly(
-        latitude=latitude,
-        longitude=longitude,
-        surface_tilt=tilt,
-        surface_azimuth=azimuth,
-        pvcalculation=True,
-        peakpower=kwp,
-        loss=19,
-        outputformat="json",
-    )
+    # pvlib uses 0=north convention (clockwise: 0=N, 90=E, 180=S, 270=W)
+    # and internally converts to PVGIS aspect via (surface_azimuth - 180).
+    # Our SystemInput uses PVGIS convention (0=south, 90=west, -90=east),
+    # so we must add 180 to convert to pvlib convention.
+    pvlib_azimuth = azimuth + 180.0
+
+    try:
+        result = get_pvgis_hourly(
+            latitude=latitude,
+            longitude=longitude,
+            surface_tilt=tilt,
+            surface_azimuth=pvlib_azimuth,
+            pvcalculation=True,
+            peakpower=kwp,
+            loss=19,
+            outputformat="json",
+        )
+    except requests.exceptions.Timeout as exc:
+        raise TimeoutError(f"PVGIS API timed out: {exc}") from exc
+    except requests.exceptions.ConnectionError as exc:
+        raise ConnectionError(f"PVGIS API unreachable: {exc}") from exc
     data = result[0]
 
     # Truncate to 8760 rows BEFORE any aggregation so monthly and hourly
@@ -187,9 +203,12 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
             hourly_production_kwh=hourly,
         )
 
-    # Trentino hybrid path: LIDAR annual total + PVGIS monthly shape
+    # Trentino hybrid path: LIDAR annual total + PVGIS monthly shape.
+    # Only used when kwp == 0 (auto-estimate mode). When the user specifies
+    # their own kWp (e.g. via panel count), skip LIDAR and use standard PVGIS.
     if (
-        system_input.rooftop_wkt is not None
+        system_input.kwp == 0
+        and system_input.rooftop_wkt is not None
         and is_in_trentino(system_input.latitude, system_input.longitude)
     ):
         try:
@@ -239,17 +258,29 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
         system_input.azimuth,
         system_input.kwp,
     )
-    monthly, hourly = await _fetch_pvgis_monthly(
-        latitude=system_input.latitude,
-        longitude=system_input.longitude,
-        tilt=system_input.tilt,
-        azimuth=system_input.azimuth,
-        kwp=system_input.kwp,
-    )
-    annual = float(monthly.sum())
-    return ProductionData(
-        monthly_production_kwh=monthly,
-        annual_production_kwh=annual,
-        source="pvgis",
-        hourly_production_kwh=hourly,
-    )
+    try:
+        monthly, hourly = await _fetch_pvgis_monthly(
+            latitude=system_input.latitude,
+            longitude=system_input.longitude,
+            tilt=system_input.tilt,
+            azimuth=system_input.azimuth,
+            kwp=system_input.kwp,
+        )
+        annual = float(monthly.sum())
+        return ProductionData(
+            monthly_production_kwh=monthly,
+            annual_production_kwh=annual,
+            source="pvgis",
+            hourly_production_kwh=hourly,
+        )
+    except (ConnectionError, TimeoutError) as exc:
+        logger.warning("PVGIS unreachable, falling back to synthetic production: %s", exc)
+        annual = system_input.kwp * _SYNTHETIC_YIELD_KWH_KWP
+        monthly = annual * SOLAR_MONTHLY_FRACTIONS
+        hourly = _build_synthetic_hourly(annual)
+        return ProductionData(
+            monthly_production_kwh=monthly,
+            annual_production_kwh=annual,
+            source="synthetic",
+            hourly_production_kwh=hourly,
+        )

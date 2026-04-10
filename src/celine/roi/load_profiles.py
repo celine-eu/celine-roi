@@ -104,6 +104,147 @@ def build_hourly_consumption(
     return result
 
 
+def profile_from_manual_hourly(hourly_kwh: tuple[float, ...] | list[float]) -> dict[str, Any]:
+    """Build a profile config from 24 user-provided mean kWh/hour values.
+
+    The values represent the user's average consumption for each hour of the
+    day in kWh.  They are normalized to sum=1.0 for hourly_coefficients and
+    paired with flat monthly weights (no seasonal variation).
+
+    Args:
+        hourly_kwh: 24 mean kWh values, one per hour (00:00-23:00).
+
+    Returns:
+        Profile config dict compatible with build_hourly_consumption().
+
+    Raises:
+        ValueError: If not exactly 24 values or all zeros.
+    """
+    if len(hourly_kwh) != 24:
+        raise ValueError(f"Expected 24 hourly values, got {len(hourly_kwh)}")
+
+    total = sum(hourly_kwh)
+    if total <= 0:
+        raise ValueError("Hourly values must sum to a positive number")
+
+    coefficients = [v / total for v in hourly_kwh]
+    monthly_weights = [1.0 / 12] * 12
+
+    return {
+        "profile_type": "manual_24h",
+        "hourly_coefficients": coefficients,
+        "monthly_weights": monthly_weights,
+    }
+
+
+def load_meter_data_profile(folder_path: Path) -> dict[str, Any]:
+    """Build a profile config from a folder of daily smart-meter JSON files.
+
+    Each file is named YYYY-MM-DD.json and contains hourly consumption in
+    the C2G/e-distribuzione format:
+        {"imported": {"data": {"consumptions": [{"hour": 0, "total": ...}, ...]}}}
+
+    The function computes average hourly coefficients and monthly weights
+    from all available data.
+
+    Args:
+        folder_path: Path to the meter data folder.
+
+    Returns:
+        Profile config dict compatible with build_hourly_consumption().
+
+    Raises:
+        FileNotFoundError: If folder does not exist.
+        ValueError: If no valid data found.
+    """
+    if not folder_path.is_dir():
+        raise FileNotFoundError(f"Meter data folder not found: {folder_path}")
+
+    # Accumulate hourly totals per month: {month_1based: [sum_h0..sum_h23]}
+    monthly_hourly_sums: dict[int, list[float]] = {}
+    monthly_day_counts: dict[int, int] = {}
+
+    json_files = sorted(folder_path.glob("*.json"))
+    if not json_files:
+        raise ValueError(f"No JSON files found in {folder_path}")
+
+    for json_file in json_files:
+        try:
+            with open(json_file) as fh:
+                data = json.load(fh)
+
+            consumptions = data["imported"]["data"]["consumptions"]
+            if not consumptions:
+                continue
+
+            month = consumptions[0].get("month")
+            if month is None:
+                continue
+
+            if month not in monthly_hourly_sums:
+                monthly_hourly_sums[month] = [0.0] * 24
+                monthly_day_counts[month] = 0
+
+            for entry in consumptions:
+                hour = entry.get("hour")
+                total = entry.get("total", 0.0)
+                if hour is not None and 0 <= hour < 24 and total is not None:
+                    monthly_hourly_sums[month][hour] += float(total)
+
+            monthly_day_counts[month] += 1
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.warning("Skipping invalid meter file: %s", json_file.name)
+            continue
+
+    if not monthly_hourly_sums:
+        raise ValueError(f"No valid meter data found in {folder_path}")
+
+    # Compute average daily hourly profile (across all months)
+    hourly_totals = np.zeros(24)
+    total_days = 0
+    for month, sums in monthly_hourly_sums.items():
+        hourly_totals += np.array(sums)
+        total_days += monthly_day_counts[month]
+
+    if hourly_totals.sum() <= 0:
+        raise ValueError("Meter data contains zero total consumption")
+
+    # Normalize hourly coefficients (average day shape)
+    hourly_avg = hourly_totals / total_days
+    hourly_coefficients = (hourly_avg / hourly_avg.sum()).tolist()
+
+    # Compute monthly weights from actual monthly totals
+    monthly_totals = np.zeros(12)
+    for month, sums in monthly_hourly_sums.items():
+        monthly_totals[month - 1] = sum(sums)
+
+    # Fill missing months with average of available months
+    available_months = monthly_totals > 0
+    if available_months.any():
+        avg_monthly = monthly_totals[available_months].mean()
+        monthly_totals[~available_months] = avg_monthly
+
+    monthly_weights = (monthly_totals / monthly_totals.sum()).tolist()
+
+    logger.info(
+        "Loaded meter data profile from %s: %d files, %d months, "
+        "%.1f kWh/day avg",
+        folder_path.name, len(json_files), len(monthly_hourly_sums),
+        hourly_avg.sum(),
+    )
+
+    return {
+        "profile_type": "meter_data",
+        "source_folder": folder_path.name,
+        "days_loaded": total_days,
+        "months_covered": sorted(monthly_hourly_sums.keys()),
+        "daily_avg_kwh": round(float(hourly_avg.sum()), 3),
+        "hourly_coefficients": hourly_coefficients,
+        "monthly_weights": monthly_weights,
+    }
+
+
 def build_hourly_consumption_with_heat_pump(
     annual_consumption_kwh: float,
     base_profile_config: dict[str, Any],

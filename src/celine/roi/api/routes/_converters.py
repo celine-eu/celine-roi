@@ -37,6 +37,8 @@ def to_system_input(s: SystemInputRequest) -> SystemInput:
         abitazione_principale=s.abitazione_principale,
         heat_pump_kwh_annual=s.heat_pump_kwh_annual,
         battery_kwh=s.battery_kwh,
+        custom_hourly_kwh=tuple(s.custom_hourly_kwh) if s.custom_hourly_kwh else None,
+        custom_profile_dir=s.custom_profile_dir,
     )
 
 

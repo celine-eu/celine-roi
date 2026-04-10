@@ -59,6 +59,8 @@ class SystemInput:
     abitazione_principale: bool = True  # Primary residence — affects IRPEF deduction rate
     heat_pump_kwh_annual: float = 0.0  # Additional HP load — 0 = no heat pump
     battery_kwh: float = 0.0  # Battery capacity — used for cost deduction only
+    custom_hourly_kwh: tuple[float, ...] | None = None  # 24 mean kWh/hour values (manual profile)
+    custom_profile_dir: str | None = None  # Folder name with daily meter JSON files
 
 
 @dataclass(frozen=True)

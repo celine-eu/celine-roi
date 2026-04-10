@@ -65,25 +65,27 @@ class TestFetchProductionSynthetic:
 class TestFetchProductionPVGIS:
     """Tests for PVGIS API path (mocked)."""
 
-    async def test_pvgis_api_failure_raises_error(
+    async def test_pvgis_api_failure_falls_back_to_synthetic(
         self, input_without_override: SystemInput
     ) -> None:
         with patch(
             "celine.roi.pvgis_client._fetch_pvgis_monthly",
             new=AsyncMock(side_effect=ConnectionError("PVGIS unreachable")),
         ):
-            with pytest.raises(ConnectionError, match="PVGIS unreachable"):
-                await fetch_production(input_without_override)
+            result = await fetch_production(input_without_override)
+        assert result.source == "synthetic"
+        assert result.annual_production_kwh > 0
+        assert len(result.hourly_production_kwh) == 8760
 
-    async def test_does_not_silently_fallback(
+    async def test_pvgis_timeout_falls_back_to_synthetic(
         self, input_without_override: SystemInput
     ) -> None:
         with patch(
             "celine.roi.pvgis_client._fetch_pvgis_monthly",
-            new=AsyncMock(side_effect=ConnectionError("fail")),
+            new=AsyncMock(side_effect=TimeoutError("PVGIS timed out")),
         ):
-            with pytest.raises(ConnectionError):
-                await fetch_production(input_without_override)
+            result = await fetch_production(input_without_override)
+        assert result.source == "synthetic"
 
 
 _WKT_LAVARONE = (
@@ -95,10 +97,11 @@ class TestFetchProductionHybrid:
     """Tests for hybrid Trentino+PVGIS path."""
 
     async def test_hybrid_source_when_rooftop_wkt_provided(self) -> None:
+        """Trentino LIDAR path triggers only when kwp=0 (auto-estimate mode)."""
         from celine.roi.trentino_solar import TrentinoSolarResult
 
         si = SystemInput(
-            kwp=31.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            kwp=0, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
             capex=31400.0, annual_consumption_kwh=40000.0, user_type="commercial",
             regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
             rooftop_wkt=_WKT_LAVARONE,
@@ -124,7 +127,7 @@ class TestFetchProductionHybrid:
 
     async def test_fallback_to_pvgis_when_trentino_fails(self) -> None:
         si = SystemInput(
-            kwp=31.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            kwp=0, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
             capex=31400.0, annual_consumption_kwh=40000.0, user_type="commercial",
             regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
             rooftop_wkt=_WKT_LAVARONE,
@@ -157,6 +160,25 @@ class TestFetchProductionHybrid:
 
         mock_trentino.assert_not_called()
         assert result.source == "pvgis"
+
+    async def test_no_hybrid_when_kwp_specified_with_wkt(self) -> None:
+        """When user specifies kWp (e.g. via panel count), skip LIDAR even with WKT in Trentino."""
+        si = SystemInput(
+            kwp=5.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            capex=6600.0, annual_consumption_kwh=4000.0, user_type="residential",
+            regime="RID", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            rooftop_wkt=_WKT_LAVARONE,
+        )
+
+        with (
+            patch("celine.roi.pvgis_client.fetch_trentino_solar") as mock_trentino,
+            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+        ):
+            result = await fetch_production(si)
+
+        mock_trentino.assert_not_called()
+        assert result.source == "pvgis"
+        assert result.effective_kwp is None
 
     async def test_no_hybrid_without_rooftop_wkt(self) -> None:
         si = SystemInput(

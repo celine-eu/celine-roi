@@ -178,6 +178,27 @@ class SystemInputRequest(BaseModel):
             "Typical residential: 5-15 kWh. 0 = no battery."
         ),
     )
+    custom_hourly_kwh: list[float] | None = Field(
+        default=None,
+        min_length=24,
+        max_length=24,
+        description=(
+            "Personal consumption profile: 24 mean kWh values (one per hour, "
+            "00:00-23:00). Overrides the default user_type profile. "
+            "Example: [0.2, 0.15, 0.1, ..., 0.5] representing average hourly "
+            "consumption in kWh."
+        ),
+    )
+    custom_profile_dir: str | None = Field(
+        default=None,
+        max_length=200,
+        description=(
+            "Personal consumption profile from smart meter data: folder name "
+            "inside config/load_profiles/ containing daily JSON files "
+            "(YYYY-MM-DD.json format from C2G/e-distribuzione). "
+            "Example: 'IT221E00549903'"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_loan_consistency(self) -> "SystemInputRequest":
