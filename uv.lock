@@ -80,7 +80,7 @@ wheels = [
 
 [[package]]
 name = "celine-roi"
-version = "1.2.0"
+version = "1.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
