@@ -6,6 +6,7 @@ import os
 import uuid
 
 import pytest
+from fastapi.testclient import TestClient
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -27,9 +28,7 @@ async def pool():
         pytest.skip("Postgres not reachable")
     async with _pool.acquire() as conn:
         await conn.execute(
-            (
-                __import__("pathlib").Path(__file__).parent.parent / "sql" / "init.sql"
-            ).read_text()
+            (__import__("pathlib").Path(__file__).parent.parent / "sql" / "init.sql").read_text()
         )
     yield _pool
     await _pool.close()
@@ -37,7 +36,7 @@ async def pool():
 
 class TestSaveEstimate:
     async def test_save_and_retrieve_scenario(self, pool) -> None:
-        from celine.roi.api.database import save_estimate, get_estimate
+        from celine.roi.api.database import get_estimate, save_estimate
 
         request_data = {"system": {"kwp": 10, "latitude": 46.0}}
         response_data = {"summary": {"npv_eur": 5000}}
@@ -63,7 +62,7 @@ class TestSaveEstimate:
         assert record["created_at"] is not None
 
     async def test_save_error_estimate(self, pool) -> None:
-        from celine.roi.api.database import save_estimate, get_estimate
+        from celine.roi.api.database import get_estimate, save_estimate
 
         estimate_id = await save_estimate(
             pool=pool,
@@ -89,7 +88,7 @@ class TestSaveEstimate:
 
 class TestListEstimates:
     async def test_list_returns_recent_first(self, pool) -> None:
-        from celine.roi.api.database import save_estimate, list_estimates
+        from celine.roi.api.database import list_estimates, save_estimate
 
         ids = []
         for idx in range(3):
@@ -110,7 +109,7 @@ class TestListEstimates:
         assert returned_ids.index(ids[2]) < returned_ids.index(ids[0])
 
     async def test_list_filter_by_endpoint(self, pool) -> None:
-        from celine.roi.api.database import save_estimate, list_estimates
+        from celine.roi.api.database import list_estimates, save_estimate
 
         await save_estimate(
             pool=pool,
@@ -136,29 +135,11 @@ class TestListEstimates:
             assert ids1.isdisjoint(ids2)
 
 
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture()
-def app(pool, monkeypatch):
-    """Create a test FastAPI app with the estimates router and a live pool."""
-    import celine.roi.api.database as db_mod
-    monkeypatch.setattr(db_mod, "_pool", pool)
-    monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
-
-    from celine.roi.api.app import create_app
-    application = create_app()
-    return application
-
-
-@pytest.fixture()
-def client(app):
-    return TestClient(app)
-
-
 class TestEstimatesAPI:
-    async def test_get_estimate_by_id(self, pool, client) -> None:
+    async def test_get_estimate_by_id(self, pool, monkeypatch) -> None:
         from celine.roi.api.database import save_estimate
+
+        monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
 
         estimate_id = await save_estimate(
             pool=pool,
@@ -169,19 +150,29 @@ class TestEstimatesAPI:
             duration_ms=800,
         )
 
-        resp = client.get(f"/api/v1/estimates/{estimate_id}")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["id"] == str(estimate_id)
-        assert data["endpoint"] == "scenario"
-        assert data["request"]["system"]["kwp"] == 6
+        from celine.roi.api.app import create_app
 
-    async def test_get_estimate_not_found(self, client) -> None:
-        resp = client.get(f"/api/v1/estimates/{uuid.uuid4()}")
-        assert resp.status_code == 404
+        with TestClient(create_app()) as client:
+            resp = client.get(f"/api/v1/estimates/{estimate_id}")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["id"] == str(estimate_id)
+            assert data["endpoint"] == "scenario"
+            assert data["request"]["system"]["kwp"] == 6
 
-    async def test_list_estimates(self, pool, client) -> None:
+    async def test_get_estimate_not_found(self, monkeypatch) -> None:
+        monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
+
+        from celine.roi.api.app import create_app
+
+        with TestClient(create_app()) as client:
+            resp = client.get(f"/api/v1/estimates/{uuid.uuid4()}")
+            assert resp.status_code == 404
+
+    async def test_list_estimates(self, pool, monkeypatch) -> None:
         from celine.roi.api.database import save_estimate
+
+        monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
 
         await save_estimate(
             pool=pool,
@@ -192,19 +183,24 @@ class TestEstimatesAPI:
             duration_ms=500,
         )
 
-        resp = client.get("/api/v1/estimates?limit=5")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "items" in data
-        assert "total" in data
-        assert data["limit"] == 5
+        from celine.roi.api.app import create_app
+
+        with TestClient(create_app()) as client:
+            resp = client.get("/api/v1/estimates?limit=5")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "items" in data
+            assert "total" in data
+            assert data["limit"] == 5
 
     async def test_list_estimates_db_unavailable(self, monkeypatch) -> None:
         """When pool is None (no DATABASE_URL), GET returns 503."""
         import celine.roi.api.database as db_mod
+
         monkeypatch.setattr(db_mod, "_pool", None)
 
         from celine.roi.api.app import create_app
+
         app = create_app()
         client = TestClient(app)
 
