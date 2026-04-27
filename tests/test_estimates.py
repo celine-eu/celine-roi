@@ -216,6 +216,8 @@ class TestScenarioPersistence:
     async def test_scenario_saves_estimate(self, pool, monkeypatch) -> None:
         """POST /scenario should fire a background task that saves the estimate."""
         import celine.roi.api.database as db_mod
+        import celine.roi.api.routes.scenario as scenario_mod
+
         monkeypatch.setattr(db_mod, "_pool", pool)
         monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
 
@@ -227,33 +229,39 @@ class TestScenarioPersistence:
             saved.append(kwargs)
             return result
 
-        monkeypatch.setattr(db_mod, "save_estimate", capture_save)
+        # Patch on the scenario module — the direct import binds there, not on database
+        monkeypatch.setattr(scenario_mod, "save_estimate", capture_save)
 
         from celine.roi.api.app import create_app
-        app = create_app()
-        client = TestClient(app)
 
-        resp = client.post("/api/v1/scenario", json={
-            "system": {
-                "kwp": 10.0,
-                "latitude": 46.0,
-                "longitude": 11.0,
-                "capex": 12000.0,
-                "annual_consumption_kwh": 5000.0,
-                "annual_production_kwh": 12000.0,
-            }
-        })
-        if resp.status_code == 200:
-            assert len(saved) == 1
-            assert saved[0]["endpoint"] == "scenario"
-            assert saved[0]["status"] == "success"
-            assert saved[0]["duration_ms"] >= 0
+        app = create_app()
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/v1/scenario",
+                json={
+                    "system": {
+                        "kwp": 10.0,
+                        "latitude": 46.0,
+                        "longitude": 11.0,
+                        "capex": 12000.0,
+                        "annual_consumption_kwh": 5000.0,
+                        "annual_production_kwh": 12000.0,
+                    }
+                },
+            )
+            if resp.status_code == 200:
+                assert len(saved) == 1
+                assert saved[0]["endpoint"] == "scenario"
+                assert saved[0]["status"] == "success"
+                assert saved[0]["duration_ms"] >= 0
 
 
 class TestComparePersistence:
     async def test_compare_saves_estimate(self, pool, monkeypatch) -> None:
         """POST /compare should fire a background task that saves the estimate."""
         import celine.roi.api.database as db_mod
+        import celine.roi.api.routes.compare as compare_mod
+
         monkeypatch.setattr(db_mod, "_pool", pool)
         monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
 
@@ -265,28 +273,32 @@ class TestComparePersistence:
             saved.append(kwargs)
             return result
 
-        monkeypatch.setattr(db_mod, "save_estimate", capture_save)
+        # Patch on the compare module — the direct import binds there, not on database
+        monkeypatch.setattr(compare_mod, "save_estimate", capture_save)
 
         from celine.roi.api.app import create_app
+
         app = create_app()
-        client = TestClient(app)
+        with TestClient(app) as client:
+            resp = client.post(
+                "/api/v1/compare",
+                json={
+                    "system": {
+                        "kwp": 10.0,
+                        "latitude": 46.0,
+                        "longitude": 11.0,
+                        "capex": 12000.0,
+                        "annual_consumption_kwh": 5000.0,
+                        "annual_production_kwh": 12000.0,
+                    },
+                    "scenarios": {
+                        "base": {},
+                        "optimistic": {"forced_tasso_autoconsumo": 0.7},
+                    },
+                },
+            )
 
-        resp = client.post("/api/v1/compare", json={
-            "system": {
-                "kwp": 10.0,
-                "latitude": 46.0,
-                "longitude": 11.0,
-                "capex": 12000.0,
-                "annual_consumption_kwh": 5000.0,
-                "annual_production_kwh": 12000.0,
-            },
-            "scenarios": {
-                "base": {},
-                "optimistic": {"forced_tasso_autoconsumo": 0.7},
-            },
-        })
-
-        if resp.status_code == 200:
-            assert len(saved) == 1
-            assert saved[0]["endpoint"] == "compare"
-            assert saved[0]["status"] == "success"
+            if resp.status_code == 200:
+                assert len(saved) == 1
+                assert saved[0]["endpoint"] == "compare"
+                assert saved[0]["status"] == "success"
