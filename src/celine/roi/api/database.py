@@ -22,6 +22,7 @@ async def init_pool() -> None:
     if not database_url:
         logger.info("DATABASE_URL not set — estimate persistence disabled")
         return
+    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
     _pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
     logger.info("asyncpg pool created")
 
