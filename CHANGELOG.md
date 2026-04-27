@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.9.1 (2026-04-27)
+
+### Bug Fixes
+
+- Add readme
+  ([`4248b4a`](https://github.com/celine-eu/celine-roi/commit/4248b4a028e2b1ad7e0162f8086e9f09bd72f873))
+
+
 ## v1.9.0 (2026-04-27)
 
 ### Bug Fixes
