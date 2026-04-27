@@ -17,6 +17,7 @@ dependencies = [
     "fastapi>=0.111",
     "pydantic>=2.0",
     "uvicorn[standard]>=0.29",
+    "asyncpg>=0.29",
 ]
 
 [project.scripts]
