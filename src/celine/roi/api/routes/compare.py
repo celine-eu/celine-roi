@@ -69,7 +69,10 @@ async def _persist_estimate(
         502: {"model": ErrorResponse},
     },
     summary="Compare multiple scenarios",
-    description="Run N named scenarios with different parameter overrides and return a side-by-side comparison table.",
+    description=(
+        "Run N named scenarios with different parameter overrides "
+        "and return a side-by-side comparison table."
+    ),
 )
 async def compare_endpoint(
     request: CompareRequest,
@@ -111,8 +114,7 @@ async def compare_endpoint(
     duration_ms = int((time.monotonic() - t0) * 1000)
     response_obj = CompareResponse(
         scenarios={
-            name: ScenarioResultResponse.from_domain(sr)
-            for name, sr in result.scenarios.items()
+            name: ScenarioResultResponse.from_domain(sr) for name, sr in result.scenarios.items()
         },
         summary_table=result.summary_table,
     )

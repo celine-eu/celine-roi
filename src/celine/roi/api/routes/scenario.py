@@ -75,9 +75,7 @@ async def run_scenario_endpoint(
         result = await run_scenario(system_input, effective_config)
     except (ConnectionError, TimeoutError, ValueError, AssertionError) as exc:
         duration_ms = int((time.monotonic() - t0) * 1000)
-        status_code = {ConnectionError: 502, TimeoutError: 504, ValueError: 400}.get(
-            type(exc), 500
-        )
+        status_code = {ConnectionError: 502, TimeoutError: 504, ValueError: 400}.get(type(exc), 500)
         background_tasks.add_task(
             _persist_estimate,
             endpoint="scenario",

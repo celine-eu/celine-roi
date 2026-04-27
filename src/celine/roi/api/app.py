@@ -10,7 +10,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from celine.roi.api.routes import capex, compare, energy, estimates, finance, incentives, production, scenario, validate
+from celine.roi.api.routes import (
+    capex,
+    compare,
+    energy,
+    estimates,
+    finance,
+    incentives,
+    production,
+    scenario,
+    validate,
+)
 from celine.roi.config_loader import load_config
 
 # Module-level state populated once per lifespan.
@@ -28,7 +38,8 @@ def get_app_config() -> dict[str, Any]:
 async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     config_dir = Path(app.state.config_dir)
     _state["config"] = load_config(config_dir)
-    from celine.roi.api.database import init_pool, close_pool
+    from celine.roi.api.database import close_pool, init_pool
+
     await init_pool()
     yield
     await close_pool()
