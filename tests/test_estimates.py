@@ -134,3 +134,79 @@ class TestListEstimates:
             ids1 = {item["id"] for item in page1["items"]}
             ids2 = {item["id"] for item in page2["items"]}
             assert ids1.isdisjoint(ids2)
+
+
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture()
+def app(pool, monkeypatch):
+    """Create a test FastAPI app with the estimates router and a live pool."""
+    import celine.roi.api.database as db_mod
+    monkeypatch.setattr(db_mod, "_pool", pool)
+    monkeypatch.setenv("DATABASE_URL", DATABASE_URL)
+
+    from celine.roi.api.app import create_app
+    application = create_app()
+    return application
+
+
+@pytest.fixture()
+def client(app):
+    return TestClient(app)
+
+
+class TestEstimatesAPI:
+    async def test_get_estimate_by_id(self, pool, client) -> None:
+        from celine.roi.api.database import save_estimate
+
+        estimate_id = await save_estimate(
+            pool=pool,
+            endpoint="scenario",
+            status="success",
+            request={"system": {"kwp": 6}},
+            response={"summary": {"npv_eur": 3000, "irr_pct": 9.1}},
+            duration_ms=800,
+        )
+
+        resp = client.get(f"/api/v1/estimates/{estimate_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == str(estimate_id)
+        assert data["endpoint"] == "scenario"
+        assert data["request"]["system"]["kwp"] == 6
+
+    async def test_get_estimate_not_found(self, client) -> None:
+        resp = client.get(f"/api/v1/estimates/{uuid.uuid4()}")
+        assert resp.status_code == 404
+
+    async def test_list_estimates(self, pool, client) -> None:
+        from celine.roi.api.database import save_estimate
+
+        await save_estimate(
+            pool=pool,
+            endpoint="scenario",
+            status="success",
+            request={"system": {"kwp": 3}},
+            response={"summary": {"npv_eur": 1500}},
+            duration_ms=500,
+        )
+
+        resp = client.get("/api/v1/estimates?limit=5")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        assert "total" in data
+        assert data["limit"] == 5
+
+    async def test_list_estimates_db_unavailable(self, monkeypatch) -> None:
+        """When pool is None (no DATABASE_URL), GET returns 503."""
+        import celine.roi.api.database as db_mod
+        monkeypatch.setattr(db_mod, "_pool", None)
+
+        from celine.roi.api.app import create_app
+        app = create_app()
+        client = TestClient(app)
+
+        resp = client.get("/api/v1/estimates")
+        assert resp.status_code == 503
