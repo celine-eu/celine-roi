@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.9.2 (2026-04-27)
+
+### Bug Fixes
+
+- Strip asincpg from DATABASE
+  ([`38c4e5d`](https://github.com/celine-eu/celine-roi/commit/38c4e5db75c927944a927652f78d9d8b0bbf73a3))
+
+
 ## v1.9.1 (2026-04-27)
 
 ### Bug Fixes
