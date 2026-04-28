@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -34,12 +34,12 @@ package = true
 [dependency-groups]
 dev = [
     "python-semantic-release>=10.5.3",
-    "pytest>=7.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
-    "ruff>=0.4",
+    "ruff>=0.15.12",
     "black>=24.0",
-    "mypy>=1.8",
+    "mypy>=1.20.2",
 ]
 
 [tool.semantic_release]
