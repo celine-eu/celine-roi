@@ -19,7 +19,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=_sync_url(settings.database_url),
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
@@ -39,9 +39,15 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
+def _sync_url(url: str) -> str:
+    return url.replace("postgresql+asyncpg://", "postgresql://").replace(
+        "postgresql+psycopg2://", "postgresql://"
+    )
+
+
 def run_migrations_online() -> None:
     connectable = create_engine(
-        settings.database_url,
+        _sync_url(settings.database_url),
         poolclass=pool.NullPool,
         future=True,
     )
