@@ -35,7 +35,8 @@ def do_run_migrations(connection: Connection) -> None:
         target_metadata=target_metadata,
         compare_type=True,
     )
-    context.run_migrations()
+    with context.begin_transaction():
+        context.run_migrations()
 
 
 def run_migrations_online() -> None:
