@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v1.10.0 (2026-04-29)
+
+### Chores
+
+- **deps**: Bump fastapi from 0.135.2 to 0.136.1
+  ([`04084b6`](https://github.com/celine-eu/celine-roi/commit/04084b62964c93a59c7df653e272778b35994ddb))
+
+- **deps**: Bump pydantic from 2.12.5 to 2.13.3
+  ([`c972e5c`](https://github.com/celine-eu/celine-roi/commit/c972e5c78aa8f4c718293835f532b23c91c6b5f8))
+
+- **deps**: Bump the runtime-dependencies group across 1 directory with 3 updates
+  ([`9dc3033`](https://github.com/celine-eu/celine-roi/commit/9dc30338aa3804203923b0bb09468d6d37b0ddc9))
+
+- **deps**: Update uvicorn[standard] requirement
+  ([`24a0813`](https://github.com/celine-eu/celine-roi/commit/24a08130915ff3541c963be58b68e1e8c4a87cfd))
+
+- **deps-dev**: Bump the development-dependencies group across 1 directory with 4 updates
+  ([`d85e550`](https://github.com/celine-eu/celine-roi/commit/d85e550b60576ddfae5cef83b3275e3fb0e47fc0))
+
+### Continuous Integration
+
+- Bump the actions group across 1 directory with 3 updates
+  ([`3bfcd49`](https://github.com/celine-eu/celine-roi/commit/3bfcd49af7e8c1c517ff4dc852332e6197033e03))
+
+### Features
+
+- Add alembic, AGENTS.md
+  ([`7a6e734`](https://github.com/celine-eu/celine-roi/commit/7a6e7340d41c9d3e203106b57887e40a8f8ac6e8))
+
+
 ## v1.9.2 (2026-04-27)
 
 ### Bug Fixes
