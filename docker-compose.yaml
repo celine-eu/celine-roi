@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: securepassword123
+      POSTGRES_DB: celine_roi
+    ports:
+      - "15432:5432"
+    volumes:
+      - roi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  alembic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql://postgres:securepassword123@db:5432/celine_roi"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  roi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8018:8000"
+    environment:
+      DATABASE_URL: "postgresql://postgres:securepassword123@db:5432/celine_roi"
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      alembic:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8000/docs'').read()"',
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  roi_pgdata:

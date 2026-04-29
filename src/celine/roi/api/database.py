@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import uuid
 from typing import Any
 
 import asyncpg
+
+from celine.roi.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +17,19 @@ _pool: asyncpg.Pool | None = None
 
 
 async def init_pool() -> None:
-    """Create the asyncpg connection pool if DATABASE_URL is set."""
+    """Create the asyncpg connection pool from settings.database_url."""
     global _pool
-    database_url = os.environ.get("DATABASE_URL")
+    database_url = settings.database_url
     if not database_url:
-        logger.info("DATABASE_URL not set — estimate persistence disabled")
+        logger.info("database_url not set — estimate persistence disabled")
         return
-    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
-    _pool = await asyncpg.create_pool(database_url, min_size=1, max_size=5)
+    url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    url = url.replace("postgresql+psycopg2://", "postgresql://")
+    _pool = await asyncpg.create_pool(
+        url,
+        min_size=settings.database_pool_min,
+        max_size=settings.database_pool_max,
+    )
     logger.info("asyncpg pool created")
 
 

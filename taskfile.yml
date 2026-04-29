@@ -15,6 +15,23 @@ tasks:
     cmds:
       - DEBUG_ATTACH=nowait DEBUG_PORT=48018 .venv/bin/uvicorn celine.roi.api.entrypoint:main --host 0.0.0.0 --port 8018 --reload
 
+  alembic:migrate:
+    desc: "Run migrations"
+    cmds:
+      - uv run alembic upgrade head
+
+  alembic:sync-model:
+    desc: "Create new revision"
+    cmds:
+      - uv run alembic revision --autogenerate -m "{{.MSG}}"
+    vars:
+      MSG: "update model"
+
+  alembic:reset:
+    desc: "Reset DB schema"
+    cmds:
+      - uv run alembic downgrade base
+
   release:
     cmds:
       - uv run semantic-release -v version --no-vcs-release
