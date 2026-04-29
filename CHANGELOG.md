@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.10.2 (2026-04-29)
+
+### Bug Fixes
+
+- Use sync conn in alembic
+  ([`81e83fd`](https://github.com/celine-eu/celine-roi/commit/81e83fd28e872a40cb34f9f3043ac33d33b73928))
+
+
 ## v1.10.1 (2026-04-29)
 
 ### Bug Fixes
