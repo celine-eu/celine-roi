@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.10.1 (2026-04-29)
+
+### Bug Fixes
+
+- Add logging, switch default db name
+  ([`acdc91e`](https://github.com/celine-eu/celine-roi/commit/acdc91e3461a2cc6718ad870ee672786351d31de))
+
+
 ## v1.10.0 (2026-04-29)
 
 ### Chores
