@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.10.3 (2026-05-12)
+
+### Bug Fixes
+
+- Update lidar trigger
+  ([`ef42d7d`](https://github.com/celine-eu/celine-roi/commit/ef42d7d996b82ac85cdc68bf13755e1879d1e81d))
+
+### Chores
+
+- Update docs
+  ([`5297618`](https://github.com/celine-eu/celine-roi/commit/5297618eb11a464ff273ca136ad496e9f4bd350f))
+
+
 ## v1.10.2 (2026-04-29)
 
 ### Bug Fixes
