@@ -203,48 +203,67 @@ async def fetch_production(system_input: SystemInput) -> ProductionData:
             hourly_production_kwh=hourly,
         )
 
-    # Trentino hybrid path: LIDAR annual total + PVGIS monthly shape.
-    # Only used when kwp == 0 (auto-estimate mode). When the user specifies
-    # their own kWp (e.g. via panel count), skip LIDAR and use standard PVGIS.
+    # Trentino hybrid path: LIDAR shadow-corrected yield + PVGIS monthly shape.
+    # Used whenever a rooftop polygon is available in Trentino. When the user
+    # specifies their own kWp (e.g. via panel count), LIDAR irradiance is still
+    # used but production is scaled to the user's kWp.
     if (
-        system_input.kwp == 0
-        and system_input.rooftop_wkt is not None
+        system_input.rooftop_wkt is not None
         and is_in_trentino(system_input.latitude, system_input.longitude)
     ):
         try:
             epsg = detect_epsg(system_input.rooftop_wkt)
             trentino = await fetch_trentino_solar(system_input.rooftop_wkt, epsg_code=epsg)
-            annual_trentino = trentino.electrical_output_kwh
+            lidar_annual = trentino.electrical_output_kwh
+            lidar_kwp = trentino.nominal_power_kwp
 
-            pvgis_kwp = trentino.nominal_power_kwp
             monthly, hourly = await _fetch_pvgis_monthly(
                 latitude=system_input.latitude,
                 longitude=system_input.longitude,
                 tilt=system_input.tilt,
                 azimuth=system_input.azimuth,
-                kwp=pvgis_kwp,
+                kwp=lidar_kwp,
             )
             pvgis_annual = float(monthly.sum())
             if pvgis_annual <= 0:
                 logger.warning("PVGIS returned zero annual production, falling back to synthetic")
                 raise ValueError("PVGIS returned zero production")
-            scale_factor = annual_trentino / pvgis_annual
+            scale_factor = lidar_annual / pvgis_annual
             monthly = monthly * scale_factor
             hourly = hourly * scale_factor
+
+            user_kwp = system_input.kwp
+            if user_kwp > 0 and abs(user_kwp - lidar_kwp) > 0.1:
+                kwp_scale = user_kwp / lidar_kwp
+                monthly = monthly * kwp_scale
+                hourly = hourly * kwp_scale
+                lidar_annual = lidar_annual * kwp_scale
+                logger.info(
+                    "Hybrid Trentino+PVGIS: LIDAR=%.1f kWp, user=%.1f kWp, "
+                    "scaling production by %.3f",
+                    lidar_kwp, user_kwp, kwp_scale,
+                )
+                return ProductionData(
+                    monthly_production_kwh=monthly,
+                    annual_production_kwh=lidar_annual,
+                    source="trentino+pvgis",
+                    effective_kwp=user_kwp,
+                    hourly_production_kwh=hourly,
+                )
 
             logger.info(
                 "Hybrid Trentino+PVGIS: Trentino annual=%.0f kWh, "
                 "PVGIS annual=%.0f kWh, scale=%.3f",
-                annual_trentino,
+                lidar_annual,
                 pvgis_annual,
                 scale_factor,
             )
 
             return ProductionData(
                 monthly_production_kwh=monthly,
-                annual_production_kwh=annual_trentino,
+                annual_production_kwh=lidar_annual,
                 source="trentino+pvgis",
-                effective_kwp=trentino.nominal_power_kwp,
+                effective_kwp=lidar_kwp,
                 hourly_production_kwh=hourly,
             )
         except (ValueError, ConnectionError) as exc:
