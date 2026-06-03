@@ -1,0 +1,41 @@
+{
+  "profile_type": "industrial_default",
+  "description": "Industrial/manufacturing electricity consumption profile. High baseload with daytime peak (2-shift pattern). Adapted from BDEW G3 standard industrial profile for Italian context.",
+  "source": "BDEW G3/G4 adapted",
+  "date_derived": "2026-03-30",
+  "resolution": "hourly",
+  "normalized": true,
+  "region": "Italy (general industrial/manufacturing)",
+  "notes": [
+    "Sum of coefficients = 1.0",
+    "Two-shift pattern: 06:00-22:00 main production, reduced overnight",
+    "~55% of daily consumption during sun hours (08:00-18:00)",
+    "High overnight baseload ~25% (continuous processes, standby)",
+    "Expected self-consumption rate: 50-75% for well-sized systems"
+  ],
+  "hourly_coefficients": [
+    0.0256, 0.0237, 0.0228, 0.0228, 0.0237, 0.0274,
+    0.0411, 0.0502, 0.0548, 0.0566, 0.0575, 0.0566,
+    0.0530, 0.0566, 0.0575, 0.0566, 0.0548, 0.0502,
+    0.0457, 0.0411, 0.0365, 0.0320, 0.0283, 0.0249
+  ],
+  "validation": {
+    "sum": 1.0,
+    "peak_hour": 10,
+    "peak_value": 0.0575,
+    "min_hour": 2,
+    "min_value": 0.0228,
+    "sun_hours_share": 0.554,
+    "peak_description": "Daytime production shifts (06:00-18:00)"
+  },
+  "monthly_weights": [
+    0.085, 0.082, 0.084, 0.083, 0.084, 0.083,
+    0.083, 0.078, 0.083, 0.085, 0.085, 0.085
+  ],
+  "monthly_weights_validation": {
+    "sum": 1.0,
+    "source": "Industrial pattern: very uniform across months, slight dip in August (Italian factory closures)",
+    "winter_share": 0.506,
+    "summer_share": 0.494
+  }
+}

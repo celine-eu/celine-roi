@@ -199,13 +199,10 @@ async def _run_with_production(
         system_input.custom_profile_dir is not None
         and system_input.annual_consumption_kwh == 0
     ):
-        import os
-        from pathlib import Path
-
+        from celine.roi.config_loader import resolve_config_dir
         from celine.roi.load_profiles import load_meter_data_profile
 
-        config_dir = Path(os.environ.get("CELINE_CONFIG_DIR", "config"))
-        meter_path = config_dir / "load_profiles" / system_input.custom_profile_dir
+        meter_path = resolve_config_dir() / "load_profiles" / system_input.custom_profile_dir
         profile_info = load_meter_data_profile(meter_path)
         estimated = profile_info["daily_avg_kwh"] * 365
         logger.info("Auto-estimated annual consumption from meter data: %.0f kWh", estimated)

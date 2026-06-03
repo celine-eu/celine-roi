@@ -1,0 +1,44 @@
+{
+  "profile_type": "heat_pump_component",
+  "description": "Pure heat pump electrical load shape. Additive component to blend with any base profile. Strongly daytime-weighted: HP operates during PV production hours for space heating/cooling. ~80% of daily consumption falls in solar hours (08:00-18:00).",
+  "source": "Derived from RSE/ENEA Italian HP monitoring data and SCOP analysis, 2026",
+  "date_derived": "2026-03-31",
+  "resolution": "hourly",
+  "normalized": true,
+  "region": "Italy (national average, air-source heat pump)",
+  "notes": [
+    "Sum of coefficients = 1.0",
+    "Peak hours: 09:00-11:00 (morning startup + daytime heating/cooling)",
+    "~80% of daily consumption during solar hours (08:00-18:00)",
+    "Low overnight baseload — modern HP with programmable thermostat",
+    "Monthly weights reflect Italian heating season (Nov-Mar) dominance",
+    "Default annual kWh: 3500 (heating + cooling + DHW, 100m2 standard building, Class C)",
+    "Range: 2500 kWh (South Italy, Zone C) to 4500 kWh (North Italy, Zone E/F)"
+  ],
+  "hourly_coefficients": [
+    0.018, 0.015, 0.012, 0.010, 0.010, 0.012,
+    0.025, 0.045, 0.065, 0.080, 0.085, 0.085,
+    0.080, 0.075, 0.070, 0.065, 0.060, 0.050,
+    0.035, 0.025, 0.020, 0.020, 0.020, 0.018
+  ],
+  "validation": {
+    "sum": 1.0,
+    "peak_hour": 10,
+    "peak_value": 0.085,
+    "min_hour": 3,
+    "min_value": 0.010,
+    "sun_hours_share": 0.795,
+    "peak_description": "Morning HP startup + daytime space conditioning (09:00-11:00)"
+  },
+  "monthly_weights": [
+    0.130, 0.115, 0.090, 0.070, 0.055, 0.050,
+    0.060, 0.055, 0.060, 0.075, 0.100, 0.140
+  ],
+  "monthly_weights_validation": {
+    "sum": 1.0,
+    "source": "Italian heating season pattern: Zone D/E (Central-North Italy dominant population)",
+    "winter_share": 0.575,
+    "summer_share": 0.425,
+    "note": "Winter-heavy (Nov-Mar) for space heating; summer months include cooling load"
+  }
+}

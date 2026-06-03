@@ -7,6 +7,14 @@ import pytest
 
 from celine.roi.models import SystemInput
 from celine.roi.pvgis_client import fetch_production
+from celine.roi.trentino_solar import clear_cache as clear_trentino_cache
+
+
+@pytest.fixture(autouse=True)
+def _clear_trentino_cache():
+    clear_trentino_cache()
+    yield
+    clear_trentino_cache()
 
 
 @pytest.fixture()

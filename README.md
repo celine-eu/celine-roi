@@ -35,7 +35,56 @@ All endpoints are under `/api/v1`. Interactive docs at `/docs`.
 | `/api/v1/estimates/{id}` | GET | Retrieve a saved estimate |
 | `/health` | GET | Health check |
 
-## Quick Start
+## Library Usage
+
+Install from PyPI:
+
+```bash
+pip install celine-roi
+```
+
+Run a PV ROI analysis from Python:
+
+```python
+from celine.roi import calculate_roi
+
+result = calculate_roi(
+    kwp=6.0,
+    latitude=45.93,
+    longitude=11.27,
+    capex=7500,
+    annual_consumption_kwh=3000,
+    user_type="residential",
+    regime="RID_CER",
+    annual_production_kwh=7200,  # skip PVGIS network call
+)
+
+print(f"NPV: {result.finance.npv:.0f} EUR")
+print(f"IRR: {result.finance.irr:.1%}")
+print(f"Payback: {result.finance.payback_simple:.1f} years")
+```
+
+Individual engines and config utilities are also available:
+
+```python
+from celine.roi import (
+    compute_energy,
+    compute_incentives,
+    compute_finance,
+    load_default_config,
+    SystemInput,
+)
+```
+
+For async contexts (e.g. Jupyter notebooks), use `calculate_roi_async`:
+
+```python
+from celine.roi import calculate_roi_async
+
+result = await calculate_roi_async(kwp=6.0, latitude=45.93, ...)
+```
+
+## Quick Start (Server)
 
 ```bash
 uv sync

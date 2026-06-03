@@ -1,0 +1,43 @@
+{
+  "profile_type": "residential_heat_pump",
+  "description": "Italian residential household with air-source heat pump. Derived from real 15-min smart meter data (Folgaria, Trentino, Sep 2025 - Jan 2026). Consumption is strongly daytime-weighted due to heat pump operation during PV production hours.",
+  "source": "Real smart meter data, c2g-686DEF19C, Folgaria (TN)",
+  "date_derived": "2026-03-27",
+  "resolution": "hourly",
+  "normalized": true,
+  "region": "Trentino-Alto Adige (applicable to Alpine/Northern Italy heat pump households)",
+  "notes": [
+    "Sum of coefficients = 1.0",
+    "Times are in standard local time (Europe/Rome, no daylight saving adjustments)",
+    "Peak consumption: 10:00-12:00 (heat pump + appliances during daytime)",
+    "Minimum consumption: 03:00-05:00 (overnight standby)",
+    "76.8% of daily consumption falls during sun hours (08:00-17:00)",
+    "Compared to standard residential (PVGIS EU): daytime consumption is 2.5x higher",
+    "Derived from 5 full months of real data (Sep, Oct, Nov, Dec, Jan)",
+    "Expected self-consumption rate with this profile: 60-85% (vs 25-35% standard residential)"
+  ],
+  "hourly_coefficients": [
+    0.0196, 0.0153, 0.0106, 0.0076, 0.0074, 0.0110,
+    0.0178, 0.0223, 0.0635, 0.1067, 0.1277, 0.1318,
+    0.1150, 0.0881, 0.0600, 0.0364, 0.0234, 0.0151,
+    0.0151, 0.0145, 0.0181, 0.0263, 0.0243, 0.0225
+  ],
+  "validation": {
+    "sum": 1.0,
+    "peak_hour": 11,
+    "peak_value": 0.1318,
+    "min_hour": 4,
+    "min_value": 0.0074,
+    "sun_hours_share": 0.768,
+    "peak_description": "Daytime heat pump operation (10:00-12:00)"
+  },
+  "monthly_weights": [
+    0.098, 0.089, 0.085, 0.074, 0.068, 0.065,
+    0.067, 0.064, 0.072, 0.082, 0.093, 0.143
+  ],
+  "monthly_weights_validation": {
+    "sum": 1.0,
+    "source": "Same as residential_default — winter-heavy seasonal pattern",
+    "note": "Heat pump households have even stronger winter weighting in practice, but using the same weights for consistency. Future: derive from full-year data."
+  }
+}

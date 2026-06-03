@@ -21,6 +21,7 @@ from celine.roi.api.routes import (
     scenario,
     validate,
 )
+from celine.roi import __version__
 from celine.roi.config_loader import load_config
 
 # Module-level state populated once per lifespan.
@@ -70,7 +71,7 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
             "Each pipeline phase is exposed as an independent endpoint so "
             "simulation layers can chain them autonomously and sweep parameters."
         ),
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
     app.state.config_dir = str(config_dir)

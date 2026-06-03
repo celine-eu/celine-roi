@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import logging
-import os
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from celine.roi.capex_estimator import estimate_capex, load_panel_specs, max_panels_for_area
+from celine.roi.config_loader import resolve_config_dir
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-_SPECS_PATH = Path(os.environ.get("CELINE_CONFIG_DIR", "config")) / "panel_specs.yaml"
 
 
 class CapexEstimateRequest(BaseModel):
@@ -51,7 +48,7 @@ class CapexEstimateResponse(BaseModel):
 )
 async def capex_estimate_endpoint(request: CapexEstimateRequest) -> CapexEstimateResponse:
     try:
-        specs = load_panel_specs(_SPECS_PATH)
+        specs = load_panel_specs(resolve_config_dir() / "panel_specs.yaml")
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail="Panel specs config not found")
 

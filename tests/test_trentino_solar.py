@@ -6,9 +6,17 @@ import pytest
 
 from celine.roi.trentino_solar import (
     TrentinoSolarResult,
+    clear_cache,
     fetch_trentino_solar,
     is_in_trentino,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_trentino_cache():
+    clear_cache()
+    yield
+    clear_cache()
 
 _WKT_LAVARONE = (
     "POLYGON((11.266 45.933, 11.266 45.9332, 11.2664 45.9332, 11.2664 45.933, 11.266 45.933))"

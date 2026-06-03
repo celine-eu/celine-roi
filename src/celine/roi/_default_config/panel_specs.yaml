@@ -1,0 +1,30 @@
+# Standard PV panel and system cost specifications
+# Italian market 2025-2026
+
+# --- Panel specs ---
+panel:
+  watt_peak: 450           # Wp per panel (mainstream 2025: 400-500 Wp)
+  area_m2: 1.96            # m² per panel (1.73m x 1.13m typical 450W)
+  efficiency_pct: 22.0     # Module efficiency (%) — mainstream monocrystalline
+
+# --- System cost curve (power law, pre-IVA) ---
+# Formula: CAPEX = base_eur * kWp^exponent
+# Calibrated on Italian market 2025-2026 (chiavi in mano, pre-IVA):
+#   3 kWp  → ~4,050 EUR  (1,350 EUR/kWp) — residential
+#   6 kWp  → ~7,440 EUR  (1,240 EUR/kWp) — residential
+#   15 kWp → ~16,300 EUR (1,087 EUR/kWp) — small commercial
+#   35 kWp → ~33,800 EUR   (966 EUR/kWp) — medium commercial
+#   75 kWp → ~64,260 EUR   (857 EUR/kWp) — large commercial
+#  200 kWp → ~150,000 EUR  (751 EUR/kWp) — industrial
+#
+# Sources: mrkilowatt.it, abbassalebollette.it, aforenergy.com, GSE 2024 report
+cost_curve:
+  base_eur: 1500.0         # EUR intercept at 1 kWp
+  exponent: 0.88           # Sub-linear exponent (economies of scale)
+  floor_eur: 2500.0        # Minimum system cost (micro-installations)
+  cap_eur: 2000000.0       # Maximum (above this → utility-scale, different procurement)
+
+# --- Input bounds ---
+bounds:
+  min_panels: 4            # Minimum viable installation (~1.8 kWp)
+  max_kwp: 1000.0          # Maximum for this cost model (above → utility-scale)

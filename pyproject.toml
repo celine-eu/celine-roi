@@ -32,6 +32,9 @@ celine-roi = "celine.roi.cli:main"
 where = ["src"]
 namespaces = true
 
+[tool.setuptools.package-data]
+"celine.roi._default_config" = ["*.yaml", "load_profiles/*.json"]
+
 [tool.uv]
 package = true
 
