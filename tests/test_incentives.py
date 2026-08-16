@@ -25,7 +25,10 @@ def energy_result(
 
 
 class TestComputeIncentivesYear1:
-    """Year 1 values against hand-calculated reference."""
+    """Year 1 values against hand-calculated reference.
+
+    @verifies REQ-0501 REQ-0504
+    """
 
     def test_returns_incentive_result(self, reference_input, energy_result, config) -> None:
         result = compute_incentives(reference_input, energy_result, config)
@@ -70,7 +73,10 @@ class TestComputeIncentivesYear1:
 
 
 class TestComputeIncentivesCER20Year:
-    """CER incentive terminates after year 20."""
+    """CER incentive terminates after year 20.
+
+    @verifies REQ-0503
+    """
 
     def test_cer_tip_zero_after_year20(self, reference_input, energy_result, config) -> None:
         result = compute_incentives(reference_input, energy_result, config)
@@ -106,7 +112,10 @@ class TestComputeIncentivesCER20Year:
 
 
 class TestComputeIncentivesDepreciation:
-    """Depreciation schedule validation."""
+    """Depreciation schedule validation.
+
+    @verifies REQ-0506
+    """
 
     def test_depreciation_sums_to_capex(self, reference_input, energy_result, config) -> None:
         result = compute_incentives(reference_input, energy_result, config)
@@ -122,7 +131,10 @@ class TestComputeIncentivesDepreciation:
 
 
 class TestComputeIncentivesDegradation:
-    """Production degradation over system lifetime."""
+    """Production degradation over system lifetime.
+
+    @verifies REQ-0502 REQ-0505
+    """
 
     def test_production_decreases_over_time(self, reference_input, energy_result, config) -> None:
         result = compute_incentives(reference_input, energy_result, config)
@@ -143,7 +155,10 @@ class TestComputeIncentivesDegradation:
 
 
 class TestDetrazioneIrpef:
-    """Tests for residential IRPEF tax deduction (Bonus Ristrutturazione)."""
+    """Tests for residential IRPEF tax deduction (Bonus Ristrutturazione).
+
+    @verifies REQ-0507
+    """
 
     @pytest.fixture()
     def residential_input(self) -> SystemInput:
@@ -240,7 +255,10 @@ class TestDetrazioneIrpef:
 
 
 class TestDepreciationGating:
-    """Depreciation/tax_shield disabled for residential users."""
+    """Depreciation/tax_shield disabled for residential users.
+
+    @verifies REQ-0506
+    """
 
     def test_residential_no_depreciation(self, config) -> None:
         """Residential user_type should have zero ammortamento and tax_shield."""
@@ -270,7 +288,10 @@ class TestDepreciationGating:
 
 
 class TestDetrazioneConfigurable:
-    """Tests for configurable detrazione rate and IVA inclusion."""
+    """Tests for configurable detrazione rate and IVA inclusion.
+
+    @verifies REQ-0508
+    """
 
     @pytest.fixture()
     def residential_input(self) -> SystemInput:
@@ -296,7 +317,7 @@ class TestDetrazioneConfigurable:
     def test_detrazione_rate_override(
         self, residential_input, residential_energy, config,
     ) -> None:
-        """With detrazione_rate=0.40 in config, rate should be 40% regardless of abitazione_principale."""
+        """detrazione_rate=0.40 in config wins regardless of abitazione_principale."""
         config_override = {**config, "detrazione_rate": 0.40}
         result = compute_incentives(residential_input, residential_energy, config_override)
 
@@ -360,7 +381,10 @@ class TestDetrazioneConfigurable:
 
 
 class TestCerVirtualRateMultiYear:
-    """Verify cer_virtual_consumption_rate is applied in all 25 years."""
+    """Verify cer_virtual_consumption_rate is applied in all 25 years.
+
+    @verifies REQ-0509
+    """
 
     def test_cer_virtual_rate_reduces_all_years(
         self, reference_input, energy_result, config,

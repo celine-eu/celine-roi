@@ -5,7 +5,10 @@ from celine.roi.report import format_report
 
 
 class TestParseArgs:
-    """Tests for argument parsing."""
+    """Tests for argument parsing.
+
+    @verifies REQ-1001
+    """
 
     def test_required_args(self) -> None:
         args = parse_args([
@@ -39,7 +42,10 @@ class TestParseArgs:
 
 
 class TestMain:
-    """Integration tests for CLI main function."""
+    """Integration tests for CLI main function.
+
+    @verifies REQ-1002
+    """
 
     def test_runs_with_production_override(self) -> None:
         """Full CLI run with manual production (no PVGIS call)."""
@@ -70,7 +76,10 @@ class TestMain:
 
 
 class TestFormatReport:
-    """Tests for report formatting."""
+    """Tests for report formatting.
+
+    @verifies REQ-1003
+    """
 
     async def test_report_contains_header(self, reference_input, config) -> None:
         from celine.roi.main import run_scenario

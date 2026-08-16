@@ -18,6 +18,10 @@ from celine.roi.validation.warnings import validate_model
 
 logger = logging.getLogger(__name__)
 
+# Sanity bounds used when reconciling a Trentino rooftop kWp against the user's CAPEX.
+_TYPICAL_EUR_PER_KWP = 1200.0  # midpoint of Italian 800-1500 cost curve
+_MIN_SANE_EUR_PER_KWP = 500.0
+
 
 def estimate_battery_cost(kwh: float, config: dict[str, Any]) -> float:
     """Estimate residential battery cost using a power law model.
@@ -81,9 +85,6 @@ async def run_scenario(
     # deduction) may be sized for a much smaller system.  Blindly
     # overriding kwp would give absurd CAPEX/kWp ratios and corrupt all
     # downstream financial KPIs.
-    _TYPICAL_EUR_PER_KWP = 1200.0  # midpoint of Italian 800-1500 cost curve
-    _MIN_SANE_EUR_PER_KWP = 500.0
-
     if production_data.effective_kwp is not None and production_data.effective_kwp > 0:
         pv_capex_now = system_input.capex  # already post-battery-deduction
         capex_per_eff = pv_capex_now / production_data.effective_kwp

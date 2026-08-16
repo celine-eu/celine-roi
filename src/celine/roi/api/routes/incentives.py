@@ -9,7 +9,6 @@ from fastapi import APIRouter, HTTPException
 from celine.roi.api.deps import ConfigDep, apply_config_overrides
 from celine.roi.api.routes._converters import to_energy_result, to_system_input
 from celine.roi.api.schemas import (
-    EnergyResultResponse,
     ErrorResponse,
     IncentiveResultResponse,
     IncentivesRequest,

@@ -17,7 +17,10 @@ from celine.roi.models import ProductionData, SystemInput
 
 
 class TestHourlyEnergyMatching:
-    """Tests for compute_energy with hourly resolution."""
+    """Tests for compute_energy with hourly resolution.
+
+    @verifies REQ-0102 REQ-0103 REQ-0104
+    """
 
     def test_returns_8760_arrays(
         self, reference_input: SystemInput, hourly_production: ProductionData, config: dict
@@ -109,7 +112,10 @@ class TestHourlyEnergyMatching:
 
 
 class TestHourlyFallbackToMonthly:
-    """When hourly data is NOT available, the engine falls back to monthly."""
+    """When hourly data is NOT available, the engine falls back to monthly.
+
+    @verifies REQ-0106
+    """
 
     def test_monthly_fallback_12_elements(
         self, reference_input: SystemInput, reference_production: ProductionData, config: dict
@@ -128,7 +134,10 @@ class TestHourlyFallbackToMonthly:
 
 
 class TestProfileRoutingByUserType:
-    """Verify that user_type selects the correct load profile."""
+    """Verify that user_type selects the correct load profile.
+
+    @verifies REQ-0107
+    """
 
     def test_commercial_higher_autoconsumo_than_residential(
         self, hourly_production: ProductionData, config: dict
@@ -223,7 +232,10 @@ class TestProfileRoutingByUserType:
 
 
 class TestHeatPumpKwhAnnual:
-    """Tests for SystemInput.heat_pump_kwh_annual field in hourly energy matching."""
+    """Tests for SystemInput.heat_pump_kwh_annual field in hourly energy matching.
+
+    @verifies REQ-0108
+    """
 
     def test_heat_pump_kwh_adds_to_total_consumption(
         self, hourly_production: ProductionData, config: dict
@@ -273,7 +285,8 @@ class TestHeatPumpKwhAnnual:
         result_hp = compute_energy(si_hp, pd, config)
 
         assert result_hp.tasso_autoconsumo > result_base.tasso_autoconsumo, (
-            f"HP ({result_hp.tasso_autoconsumo:.1%}) should exceed base ({result_base.tasso_autoconsumo:.1%})"
+            f"HP ({result_hp.tasso_autoconsumo:.1%}) should exceed "
+            f"base ({result_base.tasso_autoconsumo:.1%})"
         )
 
     def test_heat_pump_energy_balance_invariant(

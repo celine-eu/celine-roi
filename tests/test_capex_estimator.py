@@ -17,7 +17,10 @@ SPECS_PATH = CONFIG_DIR / "panel_specs.yaml"
 
 
 class TestLoadPanelSpecs:
-    """Tests for loading panel specs config."""
+    """Tests for loading panel specs config.
+
+    @verifies REQ-0704
+    """
 
     def test_loads_successfully(self) -> None:
         specs = load_panel_specs(SPECS_PATH)
@@ -37,7 +40,10 @@ class TestLoadPanelSpecs:
 
 
 class TestMaxPanelsForArea:
-    """Tests for computing max panels that fit on a rooftop."""
+    """Tests for computing max panels that fit on a rooftop.
+
+    @verifies REQ-0701
+    """
 
     def test_small_rooftop(self) -> None:
         specs = load_panel_specs(SPECS_PATH)
@@ -69,7 +75,10 @@ class TestMaxPanelsForArea:
 
 
 class TestEstimateCapex:
-    """Tests for CAPEX estimation from number of panels."""
+    """Tests for CAPEX estimation from number of panels.
+
+    @verifies REQ-0702 REQ-0703
+    """
 
     def test_returns_all_fields(self) -> None:
         specs = load_panel_specs(SPECS_PATH)

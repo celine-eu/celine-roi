@@ -20,7 +20,10 @@ from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
 
 class TestComputeEnergy:
-    """Tests for compute_energy with synthetic reference case."""
+    """Tests for compute_energy with synthetic reference case.
+
+    @verifies REQ-0102 REQ-0103 REQ-0104 REQ-0105
+    """
 
     def test_returns_energy_result(
         self, reference_input: SystemInput, reference_production: ProductionData, config: dict
@@ -158,7 +161,10 @@ class TestComputeEnergy:
 
 
 class TestComputeEnergyEdgeCases:
-    """Edge case tests for energy engine."""
+    """Edge case tests for energy engine.
+
+    @verifies REQ-0109
+    """
 
     def test_zero_consumption(self, config: dict) -> None:
         """All production goes to grid."""

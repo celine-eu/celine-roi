@@ -22,7 +22,10 @@ DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 
 class TestLoadProfileConfig:
-    """Tests for load_profile_config()."""
+    """Tests for load_profile_config().
+
+    @verifies REQ-0802
+    """
 
     def test_load_profile_config(self) -> None:
         """Loads config and checks required keys exist."""
@@ -46,7 +49,10 @@ class TestLoadProfileConfig:
 
 
 class TestBuildHourlyConsumption:
-    """Tests for build_hourly_consumption()."""
+    """Tests for build_hourly_consumption().
+
+    @verifies REQ-0803
+    """
 
     @pytest.fixture()
     def profile_config(self) -> dict:
@@ -134,7 +140,10 @@ class TestBuildHourlyConsumption:
 
 
 class TestLoadProfileConfigErrors:
-    """Tests for error handling in profile config loading."""
+    """Tests for error handling in profile config loading.
+
+    @verifies REQ-0802
+    """
 
     def test_missing_hourly_coefficients_raises(self, tmp_path: Path) -> None:
         config = {"monthly_weights": [1 / 12] * 12}
@@ -167,7 +176,10 @@ HP_PROFILE_PATH = CONFIG_DIR / "load_profiles" / "heat_pump_component.json"
 
 
 class TestBuildHourlyConsumptionWithHeatPump:
-    """Tests for build_hourly_consumption_with_heat_pump()."""
+    """Tests for build_hourly_consumption_with_heat_pump().
+
+    @verifies REQ-0108
+    """
 
     @pytest.fixture()
     def residential_config(self) -> dict:
@@ -233,5 +245,6 @@ class TestBuildHourlyConsumptionWithHeatPump:
         hp_share = hp_solar / with_hp[:first_week].sum()
 
         assert hp_share > base_share, (
-            f"HP blend solar share ({hp_share:.2%}) should exceed residential base ({base_share:.2%})"
+            f"HP blend solar share ({hp_share:.2%}) should exceed "
+            f"residential base ({base_share:.2%})"
         )

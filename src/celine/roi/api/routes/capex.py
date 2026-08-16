@@ -19,7 +19,11 @@ _SPECS_PATH = Path(os.environ.get("CELINE_CONFIG_DIR", "config")) / "panel_specs
 
 class CapexEstimateRequest(BaseModel):
     rooftop_area_m2: float = Field(gt=0, description="Available rooftop area in m²")
-    num_panels: int | None = Field(default=None, ge=1, description="Number of panels (if None, returns range info only)")
+    num_panels: int | None = Field(
+        default=None,
+        ge=1,
+        description="Number of panels (if None, returns range info only)",
+    )
 
 
 class PanelSpecs(BaseModel):

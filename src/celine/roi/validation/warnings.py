@@ -151,7 +151,8 @@ def validate_model(
     if hp_kwh > system_input.annual_consumption_kwh:
         warns.append((
             "heat_pump_oversized",
-            f"Heat pump {hp_kwh:.0f} kWh > base consumption {system_input.annual_consumption_kwh:.0f} kWh — "
+            f"Heat pump {hp_kwh:.0f} kWh > base consumption "
+            f"{system_input.annual_consumption_kwh:.0f} kWh — "
             "verify HP sizing (typical Italian residential: 2500-4500 kWh/year)"
         ))
 

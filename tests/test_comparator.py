@@ -28,7 +28,9 @@ def base_config() -> dict:
     return load_config(CONFIG_DIR)
 
 
+# @verifies REQ-0901
 class TestSplitOverrides:
+
     def test_system_keys_separated(self) -> None:
         overrides = {"regime": "RID", "capex": 50000.0, "wacc": 0.06}
         sys_ov, cfg_ov = _split_overrides(overrides)
@@ -53,7 +55,11 @@ class TestSplitOverrides:
         assert cfg_ov == {}
 
 
+# @verifies REQ-0901
+# @verifies REQ-0902
+# @verifies REQ-0903
 class TestCompareScenarios:
+
     @pytest.mark.asyncio
     async def test_base_case_only(self, base_input: SystemInput, base_config: dict) -> None:
         result = await compare_scenarios(base_input, base_config, {"Base": {}})

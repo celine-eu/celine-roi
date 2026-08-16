@@ -50,8 +50,9 @@ async def fetch_trentino_solar(
         TrentinoSolarResult with area, power, yield, and production.
 
     Raises:
-        ValueError: If the geometry is outside Trentino or invalid.
-        ConnectionError: If the API is unreachable.
+        ValueError: If the geometry is outside Trentino or invalid, or if the response
+            is not the shape this client expects (a missing or non-numeric field).
+        ConnectionError: If the API is unreachable or returns an HTTP error.
     """
     logger.info("Querying Trentino Solar API (EPSG:%s)", epsg_code)
 
@@ -81,12 +82,26 @@ async def fetch_trentino_solar(
         error_code = data.get("errorCode", "")
         raise ValueError(f"Trentino Solar API: {error_msg} (code: {error_code})")
 
-    result = TrentinoSolarResult(
-        area=data["area"],
-        nominal_power_kwp=data["nominalPower"],
-        energy_yield_kwh_kwp=data["energyYield"],
-        electrical_output_kwh=data["electricalOutput"],
-    )
+    # A response that is well-formed JSON but not the shape we expect — a renamed or
+    # dropped field, a null where a number belongs — is a bad response, and is reported
+    # as one. Letting KeyError or TypeError escape would make it something else: callers
+    # treat ValueError and ConnectionError as "Trentino is no use here, fall back", and
+    # a leaked KeyError bypasses that and fails the whole request instead.
+    try:
+        result = TrentinoSolarResult(
+            area=float(data["area"]),
+            nominal_power_kwp=float(data["nominalPower"]),
+            energy_yield_kwh_kwp=float(data["energyYield"]),
+            electrical_output_kwh=float(data["electricalOutput"]),
+        )
+    except KeyError as exc:
+        raise ValueError(
+            f"Trentino Solar API: response is missing field {exc}"
+        ) from exc
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"Trentino Solar API: response field is not a number: {exc}"
+        ) from exc
 
     logger.info(
         "Trentino Solar: area=%.1f m², kWp=%.1f, yield=%.0f kWh/kWp, output=%.0f kWh",

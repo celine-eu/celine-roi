@@ -12,7 +12,10 @@ from celine.roi.models import (
 
 
 class TestSystemInput:
-    """Tests for SystemInput dataclass."""
+    """Tests for SystemInput dataclass.
+
+    @verifies REQ-0205
+    """
 
     def test_create_with_required_fields(self) -> None:
         si = SystemInput(
@@ -73,7 +76,10 @@ class TestSystemInput:
 
 
 class TestProductionData:
-    """Tests for ProductionData dataclass."""
+    """Tests for ProductionData dataclass.
+
+    @verifies REQ-0205
+    """
 
     def test_create(self) -> None:
         monthly = np.array([100.0] * 12)
@@ -88,7 +94,10 @@ class TestProductionData:
 
 
 class TestEnergyResult:
-    """Tests for EnergyResult dataclass."""
+    """Tests for EnergyResult dataclass.
+
+    @verifies REQ-0205
+    """
 
     def test_create(self) -> None:
         arr = np.zeros(12)
@@ -105,7 +114,10 @@ class TestEnergyResult:
 
 
 class TestValidationReport:
-    """Tests for ValidationReport dataclass."""
+    """Tests for ValidationReport dataclass.
+
+    @verifies REQ-0205
+    """
 
     def test_create_empty(self) -> None:
         vr = ValidationReport(fails=[], warns=[], passes=[])

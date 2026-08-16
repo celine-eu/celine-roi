@@ -35,7 +35,10 @@ def _make_httpx_mock(json_payload: dict) -> tuple:
 
 
 class TestIsInTrentino:
-    """Bounding box check tests."""
+    """Bounding box check tests.
+
+    @verifies REQ-0308
+    """
 
     def test_lavarone_is_in_trentino(self) -> None:
         assert is_in_trentino(45.9333, 11.2667) is True
@@ -51,7 +54,10 @@ class TestIsInTrentino:
 
 
 class TestFetchTrentinoSolar:
-    """Tests for async API client (httpx mocked)."""
+    """Tests for async API client (httpx mocked).
+
+    @verifies REQ-0308
+    """
 
     async def test_successful_response(self) -> None:
         mock_cls, _ = _make_httpx_mock({
@@ -81,6 +87,39 @@ class TestFetchTrentinoSolar:
         with patch("celine.roi.trentino_solar.httpx.AsyncClient", mock_cls):
             with pytest.raises(ValueError, match="non ricade"):
                 await fetch_trentino_solar(_WKT_MILANO)
+
+    @pytest.mark.parametrize(
+        ("case", "payload"),
+        [
+            (
+                "missing field",
+                {"isValid": True, "nominalPower": 31.4, "energyYield": 942.77,
+                 "electricalOutput": 29599.37},
+            ),
+            (
+                "null field",
+                {"isValid": True, "area": 196.23, "nominalPower": None,
+                 "energyYield": 942.77, "electricalOutput": 29599.37},
+            ),
+            (
+                "non-numeric field",
+                {"isValid": True, "area": 196.23, "nominalPower": "n/a",
+                 "energyYield": 942.77, "electricalOutput": 29599.37},
+            ),
+        ],
+    )
+    async def test_malformed_response_raises_value_error(self, case: str, payload: dict) -> None:
+        """A response of the wrong shape is a bad response, and is reported as one.
+
+        The exception type is the contract here, not an implementation detail: callers
+        treat ValueError and ConnectionError as "Trentino is no use, fall back to PVGIS".
+        A leaked KeyError or TypeError bypasses that and fails the whole request.
+        """
+        mock_cls, _ = _make_httpx_mock(payload)
+
+        with patch("celine.roi.trentino_solar.httpx.AsyncClient", mock_cls):
+            with pytest.raises(ValueError):
+                await fetch_trentino_solar(_WKT_LAVARONE)
 
     async def test_connection_error_raises(self) -> None:
         import httpx

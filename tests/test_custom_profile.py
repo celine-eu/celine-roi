@@ -10,6 +10,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +28,81 @@ from celine.roi.models import ProductionData, SystemInput
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 LOAD_PROFILES_DIR = CONFIG_DIR / "load_profiles"
-METER_DATA_DIR = LOAD_PROFILES_DIR / "IT221E00549903"
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
+
+# One day of half-plausible residential draw, in kWh per hour. The shape only has to be
+# uneven enough that the coefficients it produces are distinguishable from a flat one.
+_METER_DAY_KWH = [
+    0.18, 0.15, 0.12, 0.11, 0.11, 0.13,
+    0.20, 0.28, 0.30, 0.26, 0.22, 0.24,
+    0.30, 0.28, 0.24, 0.22, 0.26, 0.38,
+    0.55, 0.72, 0.68, 0.50, 0.34, 0.22,
+]
+
+
+METER_FOLDER_NAME = "meter-test-profile"
+
+
+def _write_meter_days(folder: Path) -> None:
+    """Write two months of daily meter exports into `folder`.
+
+    February is given a colder, higher draw than July so that the monthly weighting has
+    something to distinguish.
+    """
+    for month, days, scale in ((2, 8, 1.35), (7, 6, 0.80)):
+        for day in range(1, days + 1):
+            payload = {
+                "imported": {
+                    "data": {
+                        "consumptions": [
+                            {"month": month, "hour": hour, "total": round(kwh * scale, 4)}
+                            for hour, kwh in enumerate(_METER_DAY_KWH)
+                        ]
+                    }
+                }
+            }
+            (folder / f"2026-{month:02d}-{day:02d}.json").write_text(json.dumps(payload))
+
+
+@pytest.fixture()
+def meter_config_dir(tmp_path: Path) -> Path:
+    """A config directory laid out as the engine expects, holding one meter profile.
+
+    The repository's real load profiles are mirrored alongside it, so a test that patches
+    `_CONFIG_DIR` at this directory can still resolve the by-user-type defaults it is
+    comparing the meter profile against.
+    """
+    profiles = tmp_path / "config" / "load_profiles"
+    folder = profiles / METER_FOLDER_NAME
+    folder.mkdir(parents=True)
+    _write_meter_days(folder)
+
+    for real in LOAD_PROFILES_DIR.glob("*.json"):
+        shutil.copy(real, profiles / real.name)
+
+    return tmp_path / "config"
+
+
+@pytest.fixture()
+def meter_data_dir(meter_config_dir: Path) -> Path:
+    """A folder of daily smart-meter files in the C2G / e-distribuzione format.
+
+    These tests used to point at `config/load_profiles/<POD>`, a folder of one
+    customer's real meter readings that exists on one machine and is gitignored. The
+    consequence was that every test needing it skipped everywhere — the loader had no
+    running coverage at all, and the skip reason ("Meter data folder not available")
+    read like an environment quirk rather than missing verification.
+
+    Synthesising the folder instead costs the one thing real data gave — proof that the
+    upstream export still has this shape — which the tests never checked anyway, since
+    nowhere that runs them had the folder. What is gained is that the loader's own
+    contract is now verified: the file naming, the nesting, the per-month accumulation
+    and the normalisation.
+    """
+    return meter_config_dir / "load_profiles" / METER_FOLDER_NAME
 
 
 @pytest.fixture()
@@ -90,7 +162,10 @@ EVENING_PEAK_24H = [
 
 
 class TestManualProfile:
-    """Tests for profile_from_manual_hourly()."""
+    """Tests for profile_from_manual_hourly().
+
+    @verifies REQ-0804
+    """
 
     def test_flat_profile_coefficients_equal(self) -> None:
         profile = profile_from_manual_hourly(FLAT_24H)
@@ -146,44 +221,52 @@ class TestManualProfile:
 
 
 class TestMeterDataProfile:
-    """Tests for load_meter_data_profile()."""
+    """Tests for load_meter_data_profile().
 
-    @pytest.mark.skipif(
-        not METER_DATA_DIR.is_dir(),
-        reason="Meter data folder not available",
-    )
-    def test_loads_real_meter_data(self) -> None:
-        profile = load_meter_data_profile(METER_DATA_DIR)
+    @verifies REQ-0804
+    """
+
+    def test_loads_meter_data(self, meter_data_dir: Path) -> None:
+        profile = load_meter_data_profile(meter_data_dir)
         assert len(profile["hourly_coefficients"]) == 24
         assert len(profile["monthly_weights"]) == 12
         assert abs(sum(profile["hourly_coefficients"]) - 1.0) < 0.01
         assert abs(sum(profile["monthly_weights"]) - 1.0) < 0.01
 
-    @pytest.mark.skipif(
-        not METER_DATA_DIR.is_dir(),
-        reason="Meter data folder not available",
-    )
-    def test_daily_avg_positive(self) -> None:
-        profile = load_meter_data_profile(METER_DATA_DIR)
+    def test_daily_avg_positive(self, meter_data_dir: Path) -> None:
+        profile = load_meter_data_profile(meter_data_dir)
         assert profile["daily_avg_kwh"] > 0
 
-    @pytest.mark.skipif(
-        not METER_DATA_DIR.is_dir(),
-        reason="Meter data folder not available",
-    )
-    def test_months_covered(self) -> None:
-        profile = load_meter_data_profile(METER_DATA_DIR)
-        assert len(profile["months_covered"]) >= 1
+    def test_months_covered(self, meter_data_dir: Path) -> None:
+        profile = load_meter_data_profile(meter_data_dir)
+        assert set(profile["months_covered"]) == {2, 7}
 
-    @pytest.mark.skipif(
-        not METER_DATA_DIR.is_dir(),
-        reason="Meter data folder not available",
-    )
-    def test_build_consumption_from_meter_profile(self) -> None:
-        profile = load_meter_data_profile(METER_DATA_DIR)
+    def test_hourly_shape_follows_the_readings(self, meter_data_dir: Path) -> None:
+        """The evening peak in the readings must survive into the coefficients."""
+        profile = load_meter_data_profile(meter_data_dir)
+        coeffs = profile["hourly_coefficients"]
+        assert coeffs[19] == pytest.approx(max(coeffs))
+        assert coeffs[19] > coeffs[3] * 3
+
+    def test_month_with_more_draw_gets_more_weight(self, meter_data_dir: Path) -> None:
+        """February is written with a higher daily draw than July, and must weigh more."""
+        profile = load_meter_data_profile(meter_data_dir)
+        weights = profile["monthly_weights"]
+        assert weights[1] > weights[6]
+
+    def test_build_consumption_from_meter_profile(self, meter_data_dir: Path) -> None:
+        profile = load_meter_data_profile(meter_data_dir)
         consumption = build_hourly_consumption(3500.0, profile)
         assert len(consumption) == 8760
         assert abs(consumption.sum() - 3500.0) < 0.1
+
+    def test_invalid_files_are_skipped_not_fatal(self, meter_data_dir: Path) -> None:
+        """One unreadable export must not lose the rest of the folder."""
+        (meter_data_dir / "2026-02-99.json").write_text("{not json")
+        (meter_data_dir / "2026-02-98.json").write_text('{"imported": {}}')
+
+        profile = load_meter_data_profile(meter_data_dir)
+        assert len(profile["hourly_coefficients"]) == 24
 
     def test_nonexistent_folder_raises(self) -> None:
         with pytest.raises(FileNotFoundError):
@@ -235,7 +318,10 @@ class TestMeterDataProfile:
 
 
 class TestEnergyCustomProfile:
-    """Test that custom profiles are used by the energy engine."""
+    """Test that custom profiles are used by the energy engine.
+
+    @verifies REQ-0804
+    """
 
     def test_manual_profile_overrides_default(
         self,
@@ -278,21 +364,27 @@ class TestEnergyCustomProfile:
         result = compute_energy(si_custom, synthetic_production, config)
         assert abs(result.consumption.sum() - 4500.0) < 1.0
 
-    @pytest.mark.skipif(
-        not METER_DATA_DIR.is_dir(),
-        reason="Meter data folder not available",
-    )
     def test_meter_profile_overrides_default(
         self,
         base_system_input: SystemInput,
         synthetic_production: ProductionData,
         config: dict[str, Any],
+        meter_config_dir: Path,
+        monkeypatch,
     ) -> None:
         from dataclasses import replace
 
+        import celine.roi.engines.energy as energy_mod
+
+        # `_CONFIG_DIR` is read from CELINE_CONFIG_DIR at import, so the env var is
+        # already too late by the time a test runs — the attribute has to be set.
+        # Same trap as the settings singleton; see
+        # .agents/knowledge/settings-are-read-once-at-import.md.
+        monkeypatch.setattr(energy_mod, "_CONFIG_DIR", meter_config_dir)
+
         si_meter = replace(
             base_system_input,
-            custom_profile_dir="IT221E00549903",
+            custom_profile_dir=METER_FOLDER_NAME,
         )
 
         result_default = compute_energy(base_system_input, synthetic_production, config)
@@ -319,7 +411,7 @@ class TestEnergyCustomProfile:
         si_both = replace(
             base_system_input,
             custom_hourly_kwh=tuple(FLAT_24H),
-            custom_profile_dir="IT221E00549903",
+            custom_profile_dir=METER_FOLDER_NAME,
         )
         si_manual = replace(
             base_system_input,

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from logging.config import fileConfig
 
-from alembic import context
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
-from sqlalchemy import create_engine
 
-from celine.roi.settings import settings
+from alembic import context
 from celine.roi.db import Base
+from celine.roi.settings import settings
 
 config = context.config
 if config.config_file_name is not None:

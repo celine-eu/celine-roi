@@ -12,7 +12,6 @@ from celine.roi.api.schemas import (
     ErrorResponse,
     FinanceRequest,
     FinanceResultResponse,
-    IncentiveResultResponse,
 )
 from celine.roi.engines.finance import compute_finance
 

@@ -1,90 +1,82 @@
-# celine-roi
+<!-- harness-standard v4 — issued by the agent harness. Do not edit; replace it with `python -m harness upgrade <target>`. -->
 
-Financial decision engine for Italian PV (photovoltaic) installations. Given system specs (kWp, location, CAPEX, consumption) it runs a multi-phase pipeline and returns 25-year financial projections under Italian incentive regimes (RID, CER, combined).
+# Agent Guide
 
-## Pipeline
+This file is the entry point. It is **navigation and constraints**: where things are, and
+what you may not do.
 
-The pipeline is a strict chain executed in `main.py:run_scenario`:
+It says nothing about this repository in particular. **It is standard — byte-identical in
+every repository carrying this harness** — so having read it once you have read it
+everywhere. Nothing repository-specific is ever added here. Content that seems to belong
+in this file belongs in one of the homes below instead, and the rule that decides which is
+in the rulebook.
 
-```
-SystemInput → fetch_production (PVGIS / Trentino Solar) → compute_energy → compute_incentives → compute_finance → validate_model → ScenarioResult
-```
+## Read in this order
 
-Each phase is both a standalone API endpoint (`/api/v1/{phase}`) and a step in the full `/api/v1/scenario` endpoint. The `/api/v1/compare` endpoint runs multiple scenarios side-by-side.
+1. This file.
+2. `.agents/README.md` — the rulebook: where work is recorded, and how. Also standard,
+   also identical everywhere.
+3. `.agents/references.local.md` — gitignored, and it names this repository's
+   **companion**: the parallel directory holding the knowledge, playbooks, plans and work.
+   The companion is the only source of truth for all four.
+4. The companion's `knowledge/` — what is true of this repository and not visible in its
+   code. List the directory; read what the task needs.
+5. `docs/`, on demand. Never speculatively.
 
-## Source layout
+The two standard files are the same wherever they appear. Having read them at one root, do
+not read them again in a repository nested inside it — read that repository's companion
+`knowledge/` instead, because that is the part which differs. **Each repository has its
+own companion**; a nested repository does not share the outer one's.
 
-```
-src/celine/roi/
-├── settings.py          # Pydantic BaseSettings (DATABASE_URL, pool sizes)
-├── db.py                # SQLAlchemy DeclarativeBase + Estimate model
-├── models.py            # Frozen dataclasses: SystemInput → … → FinanceResult (domain layer, no DB)
-├── main.py              # Pipeline orchestrator (run_scenario)
-├── config_loader.py     # Merges config/*.yaml into a flat dict
-├── pvgis_client.py      # Async HTTP client for PVGIS and Trentino Solar LIDAR
-├── trentino_solar.py    # Trentino-specific rooftop polygon → kWp estimation
-├── load_profiles.py     # Hourly consumption profile loading (JSON/CSV/meter data)
-├── capex_estimator.py   # CAPEX estimation from panel specs
-├── engines/
-│   ├── energy.py        # Hourly/monthly production-vs-consumption matching
-│   ├── incentives.py    # 25-year RID, CER TIP/Cacv, IRPEF deduction, depreciation
-│   └── finance.py       # NPV, IRR, payback, DSCR, cumulative cashflows
-├── validation/
-│   └── warnings.py      # Regulatory and parameter sanity checks
-├── scenarios/
-│   └── comparator.py    # Multi-scenario side-by-side comparison
-├── api/
-│   ├── app.py           # FastAPI factory with lifespan (config + DB pool init)
-│   ├── entrypoint.py    # uvicorn entry: main() → create_app()
-│   ├── database.py      # asyncpg pool + raw SQL queries for estimate persistence
-│   ├── deps.py          # FastAPI dependencies (config injection, per-request overrides)
-│   ├── schemas.py       # Pydantic v2 request/response models (API boundary)
-│   └── routes/          # One file per endpoint: scenario, compare, estimates, production, energy, incentives, finance, capex, validate
-```
+**If a copy of a standard file does differ, the divergence is the finding.** Report it;
+do not follow it and do not quietly reconcile it.
 
-## Key patterns
+## Where things are
 
-### Domain vs API boundary
-Domain objects are frozen dataclasses in `models.py` with numpy arrays. They are never serialized directly. Response schemas in `schemas.py` convert via `from_domain()` classmethods, turning numpy arrays into plain lists at the boundary.
+| Looking for | Go to |
+|---|---|
+| what this repository is and does | its `README.md`, then `docs/` |
+| where the companion is | `.agents/references.local.md` |
+| what is true of the code and not obvious from reading it | companion `knowledge/` |
+| how a repeated procedure is performed | companion `playbooks/` |
+| what is being worked on, and how far it has got | companion `plans/`, `work/` |
+| why a technical choice was made | `docs/decisions/` |
+| what the product must do | the specifications in `docs/` |
+| whether a requirement is verified | `.agents/trace/`, or the tool named in `.agents/harness.toml` |
+| what is broken | the issue tracker. Never a file in this repository |
+| how the parts are composed, built and run | the build and composition files at the root |
 
-### Config system
-YAML files in `config/` (`defaults.yaml`, `incentives.yaml`, `tax_rates.yaml`, `panel_specs.yaml`) are merged into a flat dict at startup by `config_loader.py`. Routes receive config via the `ConfigDep` dependency. Per-request overrides are applied through `ConfigOverrides` in the request body — only a subset of parameters is overridable (WACC, tariffs, deduction rates). Tax rates and depreciation schedules are server policy.
+This table is fixed because the structure is fixed. What varies between repositories is
+what those directories hold — found by listing them, never by an index maintained here. An
+index here would be a second copy of a fact, and the copy is what goes stale.
 
-### Database (estimates persistence)
-- **Optional**: if `DATABASE_URL` is empty/unset the app still works without persistence.
-- Uses **asyncpg** directly (no ORM for queries) — parameterized SQL in `database.py`.
-- Schema managed by **Alembic** with a SQLAlchemy model in `db.py` as the source of truth.
-- The `scenario` and `compare` routes persist results as background tasks via `save_estimate`.
-- The `estimates` routes provide read-only access to persisted results.
+## Behavioural settings
 
-### Alembic
-- `alembic.ini` at repo root, migrations in `alembic/versions/`.
-- `alembic/env.py` reads `settings.database_url` from `celine.roi.settings`.
-- Tasks: `task alembic:migrate`, `task alembic:sync-model`, `task alembic:reset`.
-- When adding/changing DB models in `db.py`, run `task alembic:sync-model` to autogenerate a migration, then review and edit it.
+The switches, not the rules. What each one serves is stated in the rulebook.
 
-### External API calls
-`pvgis_client.py` makes async HTTP calls to the EU PVGIS API and optionally the Trentino Solar LIDAR API. These are the only external network calls the engine makes. Production data can be bypassed by setting `annual_production_kwh` (synthetic distribution) or providing `rooftop_wkt` (Trentino).
+- **Ask rather than decide** when a request needs a requirement that does not exist yet.
+  Ask directly, and do not proceed on an inferred requirement.
+- **Write the plan first** for anything non-trivial, and create its work directory before
+  the first change of any phase.
+- **Establish the baseline before changing anything**, so a pre-existing failure is never
+  attributed to your change.
+- **Report faithfully.** Name what ran, what did not, and what was skipped.
+- **Check whether the change crosses a seam** — an interface another component depends on.
+  A change that crosses one is not local, however local it compiles. Which seams exist
+  here is recorded in the companion `knowledge/`.
+- **Change the component that owns the behaviour**, not the place that consumes it. A
+  workaround written at the consumer is a defect left in the owner.
 
-### Italian regulatory domain
-All financial calculations use Italian-specific parameters: IRPEF deduction (50%/36% depending on primary residence), IRES/IRAP taxation, RID feed-in tariffs, CER TIP/Cacv incentives with 20-year duration, IVA handling. The `regime` field controls which incentive stack applies: `RID` (feed-in only), `CER` (community energy only), or `RID_CER` (combined).
+## Maintaining this file
 
-## Running
+**Read only.** Do not edit it, and do not edit `.agents/README.md` beside it. Neither is
+this repository's document.
 
-```bash
-task setup              # uv sync
-task run                # uvicorn on :8018 with --reload
-task debug              # same with debugpy attach
-docker compose up       # postgres + alembic migration + app
-```
+A change lands by changing the harness that issues it, after which every repository
+receives the same text — `python -m harness upgrade <target>`. Editing one copy creates
+the drift the standard exists to remove, and the next reader cannot tell an improvement
+from an accident. REQ-0012 reports a copy that has been altered.
 
-Port mapping: local dev uses `8018`, Docker maps `8018→8000`.
-
-## Testing
-
-```bash
-uv run pytest           # all tests
-uv run pytest tests/test_scenario.py -k "test_name"
-```
-
-Tests use `pytest-asyncio` with `asyncio_mode = "auto"`. Most engine tests are pure (no DB, no network). API integration tests in `test_main.py` use FastAPI's `TestClient`.
+Anything you were about to add here has a home: a trap goes to the companion `knowledge/`, a
+procedure to its `playbooks/`, a rationale to `docs/decisions/`, a description of the
+system to `docs/`, and a defect to the issue tracker.

@@ -6,15 +6,15 @@ physically plausible results for typical Italian residential scenarios.
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
 from celine.roi.engines.energy import compute_energy
 from celine.roi.models import ProductionData, SystemInput
 
 
 class TestResidentialBenchmarks:
-    """Benchmark autoconsumo rates against industry expectations."""
+    """Benchmark autoconsumo rates against industry expectations.
+
+    @verifies REQ-0110
+    """
 
     def test_small_residential_autoconsumo_rate(
         self, hourly_production: ProductionData, config: dict

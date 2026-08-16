@@ -11,7 +11,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # ── Shared literals ────────────────────────────────────────────────────────────
 
 UserType = Literal["residential", "office", "commercial", "industrial", "agricultural"]
@@ -136,7 +135,9 @@ class SystemInputRequest(BaseModel):
         description="Panel azimuth in degrees (0=south, 90=west, -90=east)",
     )
     capex: float = Field(gt=0.0, description="Total CAPEX in EUR (net of IVA)")
-    annual_consumption_kwh: float = Field(ge=0.0, description="Annual site consumption kWh (0 = pure export)")
+    annual_consumption_kwh: float = Field(
+        ge=0.0, description="Annual site consumption kWh (0 = pure export)"
+    )
     user_type: UserType = Field(default="commercial")
     regime: Regime = Field(default="RID_CER")
     equity_fraction: float = Field(
@@ -203,7 +204,7 @@ class SystemInputRequest(BaseModel):
             "Personal consumption profile from smart meter data: folder name "
             "inside config/load_profiles/ containing daily JSON files "
             "(YYYY-MM-DD.json format from C2G/e-distribuzione). "
-            "Example: 'IT221E00549903'"
+            "Conventionally named after the POD the readings came from."
         ),
     )
 
@@ -390,7 +391,9 @@ class IncentiveResultResponse(BaseModel):
 class FinanceResultResponse(BaseModel):
     """25-year discounted cashflow analysis results."""
 
-    cashflows: list[float] = Field(description="Annual cashflows EUR (index 0 = year-0 equity outlay)")
+    cashflows: list[float] = Field(
+        description="Annual cashflows EUR (index 0 = year-0 equity outlay)"
+    )
     cumulative: list[float] = Field(description="Cumulative cashflows EUR")
     npv: float = Field(description="Net Present Value at WACC EUR")
     irr: float = Field(description="Internal Rate of Return (decimal, e.g. 0.12 = 12%)")
@@ -424,7 +427,9 @@ class CheckResult(BaseModel):
 class ValidationReportResponse(BaseModel):
     """Full validation report with categorised check results."""
 
-    fails: list[CheckResult] = Field(description="Regulatory or model failures blocking the scenario")
+    fails: list[CheckResult] = Field(
+        description="Regulatory or model failures blocking the scenario"
+    )
     warns: list[CheckResult] = Field(description="Parameter warnings (scenario still valid)")
     passes: list[CheckResult] = Field(description="Checks that passed")
     is_valid: bool = Field(description="True when fails is empty")

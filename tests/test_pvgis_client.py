@@ -1,6 +1,6 @@
 """Tests for PVGIS production data fetching."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import numpy as np
 import pytest
@@ -38,7 +38,10 @@ _MOCK_PVGIS = (_MOCK_PVGIS_MONTHLY, _MOCK_PVGIS_HOURLY)
 
 
 class TestFetchProductionSynthetic:
-    """Tests for manual override / synthetic fallback path."""
+    """Tests for manual override / synthetic fallback path.
+
+    @verifies REQ-0307
+    """
 
     async def test_returns_synthetic_source(self, input_with_override: SystemInput) -> None:
         result = await fetch_production(input_with_override)
@@ -63,7 +66,10 @@ class TestFetchProductionSynthetic:
 
 
 class TestFetchProductionPVGIS:
-    """Tests for PVGIS API path (mocked)."""
+    """Tests for PVGIS API path (mocked).
+
+    @verifies REQ-0307
+    """
 
     async def test_pvgis_api_failure_falls_back_to_synthetic(
         self, input_without_override: SystemInput
@@ -94,10 +100,13 @@ _WKT_LAVARONE = (
 
 
 class TestFetchProductionHybrid:
-    """Tests for hybrid Trentino+PVGIS path."""
+    """Tests for hybrid Trentino+PVGIS path.
+
+    @verifies REQ-0306
+    """
 
     async def test_hybrid_source_when_rooftop_wkt_provided(self) -> None:
-        """Trentino LIDAR path triggers only when kwp=0 (auto-estimate mode)."""
+        """With kwp=0 (auto-estimate), the roof's own installable capacity is used."""
         from celine.roi.trentino_solar import TrentinoSolarResult
 
         si = SystemInput(
@@ -138,7 +147,10 @@ class TestFetchProductionHybrid:
                 "celine.roi.pvgis_client.fetch_trentino_solar",
                 new=AsyncMock(side_effect=ConnectionError("API down")),
             ),
-            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+            patch(
+                "celine.roi.pvgis_client._fetch_pvgis_monthly",
+                new=AsyncMock(return_value=_MOCK_PVGIS),
+            ),
         ):
             result = await fetch_production(si)
 
@@ -149,36 +161,99 @@ class TestFetchProductionHybrid:
             kwp=45.0, latitude=41.9, longitude=12.5, tilt=30.0, azimuth=0.0,
             capex=45000.0, annual_consumption_kwh=40000.0, user_type="commercial",
             regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
-            rooftop_wkt="POLYGON((12.5 41.9, 12.5 41.9002, 12.5004 41.9002, 12.5004 41.9, 12.5 41.9))",
+            rooftop_wkt=(
+                "POLYGON((12.5 41.9, 12.5 41.9002, 12.5004 41.9002, "
+                "12.5004 41.9, 12.5 41.9))"
+            ),
         )
 
         with (
             patch("celine.roi.pvgis_client.fetch_trentino_solar") as mock_trentino,
-            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+            patch(
+                "celine.roi.pvgis_client._fetch_pvgis_monthly",
+                new=AsyncMock(return_value=_MOCK_PVGIS),
+            ),
         ):
             result = await fetch_production(si)
 
         mock_trentino.assert_not_called()
         assert result.source == "pvgis"
 
-    async def test_no_hybrid_when_kwp_specified_with_wkt(self) -> None:
-        """When user specifies kWp (e.g. via panel count), skip LIDAR even with WKT in Trentino."""
+    async def test_hybrid_scales_to_user_kwp_when_kwp_specified_with_wkt(self) -> None:
+        """A caller-supplied kWp does not skip LIDAR — it rescales the LIDAR result.
+
+        Commit `ef42d7d` widened the trigger deliberately: the shadow-corrected LIDAR
+        yield is worth having even when the caller has already fixed the system size, so
+        the rooftop's production is scaled from the roof's installable kWp to the
+        caller's. Before that commit this path was skipped entirely and `source` was
+        plain `"pvgis"`.
+        """
+        from celine.roi.trentino_solar import TrentinoSolarResult
+
+        user_kwp = 5.4
+        lidar_kwp = 31.40
+        lidar_annual = 29599.37
+
         si = SystemInput(
-            kwp=5.4, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            kwp=user_kwp, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
             capex=6600.0, annual_consumption_kwh=4000.0, user_type="residential",
             regime="RID", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
             rooftop_wkt=_WKT_LAVARONE,
         )
 
+        mock_trentino = AsyncMock(return_value=TrentinoSolarResult(
+            area=196.23, nominal_power_kwp=lidar_kwp,
+            energy_yield_kwh_kwp=942.77, electrical_output_kwh=lidar_annual,
+        ))
+
         with (
-            patch("celine.roi.pvgis_client.fetch_trentino_solar") as mock_trentino,
-            patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)),
+            patch("celine.roi.pvgis_client.fetch_trentino_solar", mock_trentino),
+            patch(
+                "celine.roi.pvgis_client._fetch_pvgis_monthly",
+                new=AsyncMock(return_value=_MOCK_PVGIS),
+            ),
         ):
             result = await fetch_production(si)
 
-        mock_trentino.assert_not_called()
-        assert result.source == "pvgis"
-        assert result.effective_kwp is None
+        mock_trentino.assert_called_once()
+        assert result.source == "trentino+pvgis"
+        assert result.effective_kwp == pytest.approx(user_kwp)
+
+        expected_annual = lidar_annual * (user_kwp / lidar_kwp)
+        assert result.annual_production_kwh == pytest.approx(expected_annual)
+        assert result.monthly_production_kwh.sum() == pytest.approx(expected_annual, rel=1e-3)
+
+    async def test_hybrid_keeps_lidar_kwp_when_user_kwp_matches_roof(self) -> None:
+        """Within 0.1 kWp of the roof's own capacity, no rescaling is applied."""
+        from celine.roi.trentino_solar import TrentinoSolarResult
+
+        lidar_kwp = 31.40
+        lidar_annual = 29599.37
+
+        si = SystemInput(
+            kwp=lidar_kwp, latitude=45.9333, longitude=11.2667, tilt=30.0, azimuth=0.0,
+            capex=31400.0, annual_consumption_kwh=40000.0, user_type="commercial",
+            regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
+            rooftop_wkt=_WKT_LAVARONE,
+        )
+
+        mock_trentino = AsyncMock(return_value=TrentinoSolarResult(
+            area=196.23, nominal_power_kwp=lidar_kwp,
+            energy_yield_kwh_kwp=942.77, electrical_output_kwh=lidar_annual,
+        ))
+
+        with (
+            patch("celine.roi.pvgis_client.fetch_trentino_solar", mock_trentino),
+            patch(
+                "celine.roi.pvgis_client._fetch_pvgis_monthly",
+                new=AsyncMock(return_value=_MOCK_PVGIS),
+            ),
+        ):
+            result = await fetch_production(si)
+
+        assert result.source == "trentino+pvgis"
+        assert result.effective_kwp == pytest.approx(lidar_kwp)
+        assert result.annual_production_kwh == pytest.approx(lidar_annual)
 
     async def test_no_hybrid_without_rooftop_wkt(self) -> None:
         si = SystemInput(
@@ -187,7 +262,10 @@ class TestFetchProductionHybrid:
             regime="RID_CER", equity_fraction=1.0, loan_rate=0.0, loan_duration_years=0,
         )
 
-        with patch("celine.roi.pvgis_client._fetch_pvgis_monthly", new=AsyncMock(return_value=_MOCK_PVGIS)):
+        with patch(
+            "celine.roi.pvgis_client._fetch_pvgis_monthly",
+            new=AsyncMock(return_value=_MOCK_PVGIS),
+        ):
             result = await fetch_production(si)
 
         assert result.source == "pvgis"

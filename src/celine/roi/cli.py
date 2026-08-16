@@ -37,7 +37,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     # System parameters
     parser.add_argument(
         "--kwp", type=float, default=0.0,
-        help="Installed PV capacity (kWp). Auto-detected from rooftop polygon if --rooftop-wkt is used.",
+        help=(
+            "Installed PV capacity (kWp). Auto-detected from rooftop polygon "
+            "if --rooftop-wkt is used."
+        ),
     )
     parser.add_argument("--lat", type=float, required=True, help="Site latitude")
     parser.add_argument("--lon", type=float, required=True, help="Site longitude")

@@ -22,7 +22,10 @@ def full_pipeline(reference_input, reference_production, config):
 
 
 class TestValidateModelPasses:
-    """Reference case should pass all checks."""
+    """Reference case should pass all checks.
+
+    @verifies REQ-0111
+    """
 
     def test_no_fails(self, reference_input, full_pipeline, config) -> None:
         energy, incentives, finance = full_pipeline
@@ -36,7 +39,10 @@ class TestValidateModelPasses:
 
 
 class TestValidateModelRegulatory:
-    """Regulatory FAIL checks."""
+    """Regulatory FAIL checks.
+
+    @verifies REQ-0111
+    """
 
     def test_ssp_regime_fails(self, config) -> None:
         si = SystemInput(
@@ -85,7 +91,10 @@ class TestValidateModelRegulatory:
 
 
 class TestValidateModelWarnings:
-    """Parameter WARN checks."""
+    """Parameter WARN checks.
+
+    @verifies REQ-0111
+    """
 
     def test_low_degradation_warns(self, reference_input, full_pipeline) -> None:
         energy, incentives, finance = full_pipeline
@@ -99,7 +108,10 @@ class TestValidateModelWarnings:
 
 
 class TestHeatPumpValidation:
-    """Validation checks for heat pump sizing."""
+    """Validation checks for heat pump sizing.
+
+    @verifies REQ-0112
+    """
 
     def test_warns_when_heat_pump_kwh_exceeds_base_consumption(
         self, reference_production, config
@@ -139,7 +151,10 @@ class TestHeatPumpValidation:
 
 
 class TestValidateModelInvariants:
-    """Invariant checks."""
+    """Invariant checks.
+
+    @verifies REQ-0102 REQ-0506
+    """
 
     def test_energy_balance_passes(self, reference_input, full_pipeline, config) -> None:
         energy, incentives, finance = full_pipeline

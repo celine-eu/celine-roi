@@ -7,7 +7,10 @@ from celine.roi.models import ScenarioResult, SystemInput
 
 
 class TestRunScenario:
-    """End-to-end pipeline test with synthetic reference case."""
+    """End-to-end pipeline test with synthetic reference case.
+
+    @verifies REQ-0101
+    """
 
     async def test_returns_scenario_result(self, reference_input, config) -> None:
         result = await run_scenario(reference_input, config)

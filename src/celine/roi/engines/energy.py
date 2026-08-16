@@ -167,7 +167,6 @@ def _forced_autoconsumo(
         EnergyResult with the forced rate applied.
     """
     rate = max(0.0, min(1.0, rate))
-    total_production = float(production.sum())
 
     # "Scenario ideale": assume consumption is high enough to achieve the
     # target rate.  Scale consumption up so that min(prod*rate, cons) = prod*rate.
@@ -180,8 +179,6 @@ def _forced_autoconsumo(
     sharing_ratio = config["sharing_ratio"]
     cer_virtual_rate = config.get("cer_virtual_consumption_rate", 1.0)
     energia_condivisa = immissione * sharing_ratio * cer_virtual_rate
-
-    tasso = float(autoconsumo.sum() / total_production) if total_production > 0 else 0.0
 
     logger.info(
         "Forced autoconsumo rate=%.1f%% applied (ideal scenario)",

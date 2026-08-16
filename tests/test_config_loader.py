@@ -10,7 +10,10 @@ CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
 class TestLoadConfig:
-    """Tests for load_config function."""
+    """Tests for load_config function.
+
+    @verifies REQ-0801
+    """
 
     def test_loads_all_yaml_files(self) -> None:
         config = load_config(CONFIG_DIR)

@@ -241,7 +241,9 @@ def format_report(
     lines.append(f"| Ricavi RID | {total_rid:,.0f} EUR |")
     lines.append(f"| CER incentivo (quota libera) | {total_cer_lib:,.0f} EUR |")
     if has_cer:
-        lines.append(f"| CER incentivo (quota vincolata, a membri CER) | {total_cer_vinc:,.0f} EUR |")
+        lines.append(
+            f"| CER incentivo (quota vincolata, a membri CER) | {total_cer_vinc:,.0f} EUR |"
+        )
     lines.append(f"| Scudo fiscale ammortamento | {total_tax_shield:,.0f} EUR |")
     lines.append(f"| IRES + IRAP | -{total_ires_irap:,.0f} EUR |")
     lines.append(f"| **Utile cumulato netto** | **{fin.cumulative[-1]:,.0f} EUR** |")
@@ -261,14 +263,19 @@ def format_report(
         f"| Tariffa CER TIP | {config['cer_tip']*1000:.1f} EUR/MWh (FISSA nominale, 20 anni) |"
     )
     lines.append(f"| Quota condivisa CER | {config['sharing_ratio']:.0%} |")
-    lines.append(f"| Ripartizione CER libero/vincolato | {cer_libero_ratio:.0%} / {1-cer_libero_ratio:.0%} |")
+    lines.append(
+        f"| Ripartizione CER libero/vincolato | "
+        f"{cer_libero_ratio:.0%} / {1-cer_libero_ratio:.0%} |"
+    )
     lines.append(f"| Tasso sconto (WACC) | {config['wacc']:.1%} |")
     lines.append(
         f"| Ammortamento fiscale | {config['depreciation_coeff']*100:.0f}% "
-        f"(anno 1: {config['depreciation_coeff']*config['depreciation_first_year_factor']*100:.1f}%) |"
+        f"(anno 1: "
+        f"{config['depreciation_coeff']*config['depreciation_first_year_factor']*100:.1f}%) |"
     )
     lines.append(f"| IRES + IRAP | {config['ires']*100:.0f}% + {config['irap']*100:.1f}% |")
-    lines.append(f"| Matching energetico | {'Orario (L2, 8760h)' if len(energy.production) > 12 else 'Mensile (L1)'} |")
+    _matching = "Orario (L2, 8760h)" if len(energy.production) > 12 else "Mensile (L1)"
+    lines.append(f"| Matching energetico | {_matching} |")
     lines.append("")
 
     # --- Validation Summary ---

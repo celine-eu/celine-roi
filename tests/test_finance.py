@@ -23,7 +23,10 @@ def incentive_result(
 
 
 class TestComputeFinance:
-    """Core finance engine tests."""
+    """Core finance engine tests.
+
+    @verifies REQ-0601 REQ-0603 REQ-0604
+    """
 
     def test_returns_finance_result(
         self, reference_input, incentive_result, config
@@ -74,7 +77,10 @@ class TestComputeFinance:
 
 
 class TestFinanceInvariants:
-    """Mathematical invariant checks."""
+    """Mathematical invariant checks.
+
+    @verifies REQ-0602 REQ-0605
+    """
 
     def test_npv_at_zero_equals_sum_of_cashflows(
         self, reference_input, incentive_result, config
@@ -92,7 +98,10 @@ class TestFinanceInvariants:
 
 
 class TestFinanceWithLoan:
-    """Tests for financed scenarios."""
+    """Tests for financed scenarios.
+
+    @verifies REQ-0601 REQ-0604
+    """
 
     def test_year0_reflects_equity_only(self, config) -> None:
         si = SystemInput(
@@ -133,7 +142,10 @@ class TestFinanceWithLoan:
 
 
 class TestFinanceWithDetrazione:
-    """Finance engine correctly includes detrazione IRPEF in cashflows."""
+    """Finance engine correctly includes detrazione IRPEF in cashflows.
+
+    @verifies REQ-0606
+    """
 
     def test_residential_cashflow_includes_detrazione(self, config) -> None:
         """Residential system cashflows should include detrazione credit."""

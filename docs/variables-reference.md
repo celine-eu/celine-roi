@@ -22,7 +22,7 @@ These are the baseline assumptions when the user doesn't specify custom values. 
 | `useful_life` | 25 years | How long the analysis runs (panel lifetime) | 20–30 |
 | `inverter_replacement_year` | Year 12 | When the inverter needs replacing (it wears out before the panels) | Year 10–15 |
 
-**Note:** Inverter replacement *cost* is no longer a config value. It's computed by a power law in `engines/finance.py` — see section 9 below.
+**Note:** Inverter replacement *cost* is no longer a config value. It's computed by a power law in `src/celine/roi/engines/finance.py` — see section 9 below.
 | `sharing_ratio` | 55% | What fraction of energy fed to the grid counts as "shared" for the CER incentive. Depends on other CER members' consumption patterns | 40–70% |
 
 ## 2. Italian Incentives (`config/incentives.yaml`)
@@ -48,7 +48,7 @@ Tariffs and rates set by Italian regulation. Update when new decrees are publish
 
 ## 4. Solar Distribution Curve
 
-**File:** `celine_roi/pvgis_client.py`
+**File:** `src/celine/roi/pvgis_client.py`
 
 Used only when the user provides annual production manually (no PVGIS call). Distributes the annual total across 12 months following a typical solar pattern for Northern Italy (46°N latitude).
 
@@ -158,7 +158,7 @@ Example: 45,000 EUR CAPEX, equity-fraction = 0.3, loan 5% for 15 years:
 
 ## 9. Inverter Replacement Cost (Power Law)
 
-**File:** `celine_roi/engines/finance.py` — `estimate_inverter_cost(kwp)`
+**File:** `src/celine/roi/engines/finance.py` — `estimate_inverter_cost(kwp)`
 
 The inverter replacement cost is NOT a flat percentage of CAPEX. It's computed with a power law that captures economies of scale (larger systems → lower cost per kWp):
 

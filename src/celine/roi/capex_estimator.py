@@ -97,7 +97,8 @@ def estimate_capex(
     if num_panels > max_panels:
         raise ValueError(
             f"num_panels={num_panels} exceeds maximum for {rooftop_area_m2:.0f} m² "
-            f"rooftop ({max_panels} panels, ~{max_panels * specs['panel']['watt_peak'] / 1000:.1f} kWp)"
+            f"rooftop ({max_panels} panels, "
+            f"~{max_panels * specs['panel']['watt_peak'] / 1000:.1f} kWp)"
         )
 
     panel_wp = specs["panel"]["watt_peak"]
