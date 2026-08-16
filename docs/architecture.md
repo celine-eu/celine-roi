@@ -50,8 +50,7 @@ testing the chain.
 | `config/*.yaml` | the parameters, merged flat at startup by `config_loader.py` |
 
 The source tree itself is the reference for what exists; this table is about what each
-layer is *for*. What must not cross between them is in
-`.agents/knowledge/the-three-boundaries.md`.
+layer is *for*. What must not cross between them is in the companion's knowledge.
 
 ## External calls
 
@@ -80,4 +79,4 @@ reference and is not restated here.
 ## Persistence is optional
 
 If `DATABASE_URL` is unset the service runs and computes normally; only the storing of
-results is lost. See `.agents/knowledge/the-three-boundaries.md`.
+results is lost.

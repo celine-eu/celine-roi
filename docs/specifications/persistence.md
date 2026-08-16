@@ -128,6 +128,6 @@ two cannot drift apart silently.
 Allocated for "the persistence tests skip cleanly when there is no database", then
 withdrawn: that is a property of the test suite, not of the service, and requirements
 here describe the service. The rule itself still holds and is stated where it belongs, in
-`.agents/playbooks/testing.md`.
+the companion's testing playbook.
 
 The number is not reused.

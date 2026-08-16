@@ -4,7 +4,7 @@ What crosses a boundary, in both directions. See [index.md](index.md) for what t
 requirements are and are not.
 
 The three boundaries themselves — why they exist and what breaks when one is crossed —
-are described in `.agents/knowledge/the-three-boundaries.md`. This document states what
+are described in the companion's knowledge. This document states what
 is *checked*.
 
 ---

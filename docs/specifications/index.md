@@ -60,7 +60,7 @@ should not be one.
 
 ## What is knowingly not verified
 
-Two things, both stated in `.agents/playbooks/testing.md` and neither fixable by a test:
+Two things, both stated in the companion's testing playbook and neither fixable by a test:
 
 - **A real PVGIS or Trentino Solar response.** Both services are mocked everywhere.
   `REQ-03xx` constrains what this repository sends and how it parses what it receives; it
