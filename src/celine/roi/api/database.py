@@ -180,6 +180,205 @@ async def list_estimates(
     }
 
 
+async def save_feedback(
+    pool: asyncpg.Pool,
+    *,
+    community_key: str,
+    user_id: str,
+    rating: int,
+    comment: str | None,
+    context: dict[str, Any],
+    screenshot_mime_type: str | None,
+    screenshot_bytes: bytes | None,
+    client_ip: str | None,
+) -> dict[str, Any]:
+    row = await pool.fetchrow(
+        """
+        INSERT INTO feedback_entries (
+            community_key, user_id, rating, comment, page_url, page_title, page_path,
+            locale, timezone, user_agent, viewport_width, viewport_height, screen_width,
+            screen_height, color_scheme, client_timestamp, client_ip, extra_context,
+            screenshot_mime_type, screenshot_bytes
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+            $15, $16, $17, $18::jsonb, $19, $20
+        )
+        RETURNING id, created_at
+        """,
+        community_key,
+        user_id,
+        rating,
+        comment,
+        context["page_url"],
+        context.get("page_title"),
+        context.get("page_path"),
+        context.get("locale"),
+        context.get("timezone"),
+        context.get("user_agent"),
+        context.get("viewport_width"),
+        context.get("viewport_height"),
+        context.get("screen_width"),
+        context.get("screen_height"),
+        context.get("color_scheme"),
+        context.get("client_timestamp"),
+        client_ip,
+        json.dumps(context.get("extra") or {}),
+        screenshot_mime_type,
+        screenshot_bytes,
+    )
+    return dict(row)
+
+
+async def list_feedback(
+    pool: asyncpg.Pool,
+    community_key: str,
+    *,
+    status: str | None,
+    page: int,
+    page_size: int,
+) -> dict[str, Any]:
+    counts_rows = await pool.fetch(
+        "SELECT status, count(*) AS count FROM feedback_entries "
+        "WHERE community_key = $1 GROUP BY status",
+        community_key,
+    )
+    counts = {row["status"]: row["count"] for row in counts_rows}
+    if status:
+        total = await pool.fetchval(
+            "SELECT count(*) FROM feedback_entries WHERE community_key = $1 AND status = $2",
+            community_key,
+            status,
+        )
+        rows = await pool.fetch(
+            """
+            SELECT id, rating, comment, page_url, page_title, page_path, locale, timezone,
+                   viewport_width, viewport_height, screen_width, screen_height, color_scheme,
+                   client_timestamp, extra_context, screenshot_bytes IS NOT NULL AS has_screenshot,
+                   status, seen_at, resolved_at, created_at
+            FROM feedback_entries
+            WHERE community_key = $1 AND status = $2
+            ORDER BY created_at DESC, id DESC
+            LIMIT $3 OFFSET $4
+            """,
+            community_key,
+            status,
+            page_size,
+            (page - 1) * page_size,
+        )
+    else:
+        total = await pool.fetchval(
+            "SELECT count(*) FROM feedback_entries WHERE community_key = $1",
+            community_key,
+        )
+        rows = await pool.fetch(
+            """
+            SELECT id, rating, comment, page_url, page_title, page_path, locale, timezone,
+                   viewport_width, viewport_height, screen_width, screen_height, color_scheme,
+                   client_timestamp, extra_context, screenshot_bytes IS NOT NULL AS has_screenshot,
+                   status, seen_at, resolved_at, created_at
+            FROM feedback_entries
+            WHERE community_key = $1
+            ORDER BY created_at DESC, id DESC
+            LIMIT $2 OFFSET $3
+            """,
+            community_key,
+            page_size,
+            (page - 1) * page_size,
+        )
+    return {
+        "community_key": community_key,
+        "page": page,
+        "page_size": page_size,
+        "total": total or 0,
+        "counts": {
+            "new": counts.get("new", 0),
+            "seen": counts.get("seen", 0),
+            "resolved": counts.get("resolved", 0),
+        },
+        "items": [_feedback_row_to_dict(row) for row in rows],
+    }
+
+
+async def get_feedback_status(
+    pool: asyncpg.Pool, community_key: str, feedback_id: uuid.UUID
+) -> str | None:
+    return await pool.fetchval(
+        "SELECT status FROM feedback_entries WHERE community_key = $1 AND id = $2",
+        community_key,
+        feedback_id,
+    )
+
+
+async def get_feedback_item(
+    pool: asyncpg.Pool, community_key: str, feedback_id: uuid.UUID
+) -> dict[str, Any] | None:
+    row = await pool.fetchrow(
+        """
+        SELECT id, rating, comment, page_url, page_title, page_path, locale, timezone,
+               viewport_width, viewport_height, screen_width, screen_height, color_scheme,
+               client_timestamp, extra_context, screenshot_bytes IS NOT NULL AS has_screenshot,
+               status, seen_at, resolved_at, created_at
+        FROM feedback_entries
+        WHERE community_key = $1 AND id = $2
+        """,
+        community_key,
+        feedback_id,
+    )
+    return _feedback_row_to_dict(row) if row else None
+
+
+async def get_feedback_screenshot(
+    pool: asyncpg.Pool, community_key: str, feedback_id: uuid.UUID
+) -> dict[str, Any] | None:
+    row = await pool.fetchrow(
+        "SELECT screenshot_bytes, screenshot_mime_type FROM feedback_entries "
+        "WHERE community_key = $1 AND id = $2",
+        community_key,
+        feedback_id,
+    )
+    return dict(row) if row else None
+
+
+async def update_feedback_status(
+    pool: asyncpg.Pool,
+    community_key: str,
+    feedback_id: uuid.UUID,
+    *,
+    status: str,
+    actor_id: str,
+) -> dict[str, Any] | None:
+    row = await pool.fetchrow(
+        """
+        UPDATE feedback_entries
+        SET status = $3,
+            seen_at = COALESCE(seen_at, now()),
+            resolved_at = CASE WHEN $3 = 'resolved' THEN COALESCE(resolved_at, now())
+                               ELSE resolved_at END,
+            status_updated_by = $4
+        WHERE community_key = $1 AND id = $2
+          AND CASE status WHEN 'new' THEN 0 WHEN 'seen' THEN 1 ELSE 2 END
+              <= CASE $3 WHEN 'new' THEN 0 WHEN 'seen' THEN 1 ELSE 2 END
+        RETURNING id, rating, comment, page_url, page_title, page_path, locale, timezone,
+                  viewport_width, viewport_height, screen_width, screen_height, color_scheme,
+                  client_timestamp, extra_context, screenshot_bytes IS NOT NULL AS has_screenshot,
+                  status, seen_at, resolved_at, created_at
+        """,
+        community_key,
+        feedback_id,
+        status,
+        actor_id,
+    )
+    return _feedback_row_to_dict(row) if row else None
+
+
+def _feedback_row_to_dict(row: asyncpg.Record) -> dict[str, Any]:
+    result: dict[str, Any] = dict(row)
+    extra = result.pop("extra_context", None)
+    result["extra"] = json.loads(extra) if isinstance(extra, str) else (extra or {})
+    return result
+
+
 def _extract_summary(response: dict[str, Any], endpoint: str) -> dict[str, Any]:
     """Extract a compact summary from stored response JSONB.
 

@@ -4,9 +4,73 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import Depends, Request
+import jwt as pyjwt
+from celine.sdk.auth import JwtUser
+from celine.sdk.auth.jwt import organization_groups, realm_groups
+from fastapi import Depends, HTTPException, Request
 
 from celine.roi.api.schemas import ConfigOverrides
+from celine.roi.settings import settings
+
+
+def _names(groups: list[str]) -> set[str]:
+    return {group.strip("/").lower() for group in groups}
+
+
+def extract_token(request: Request) -> str | None:
+    token = request.headers.get(settings.jwt_header_name)
+    if token:
+        return token
+    authorization = request.headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return None
+
+
+def get_user_from_request(request: Request) -> JwtUser:
+    token = extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing authentication token")
+    try:
+        return JwtUser.from_token(token, oidc=settings.oidc)
+    except pyjwt.ExpiredSignatureError as exc:
+        raise HTTPException(status_code=401, detail="Token has expired") from exc
+    except pyjwt.InvalidTokenError as exc:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Authentication failed") from exc
+
+
+def rec_community_keys(user: JwtUser) -> list[str]:
+    return sorted(
+        org.alias
+        for org in user.organizations
+        if org.alias and (org.type or "").lower() == "rec"
+    )
+
+
+def require_rec_member(user: JwtUser, community_key: str) -> None:
+    if community_key not in rec_community_keys(user):
+        raise HTTPException(status_code=403, detail="REC membership required")
+
+
+def require_rec_manager(user: JwtUser, community_key: str) -> None:
+    claims = user.claims or {}
+    raw_scope = claims.get("scope") or ""
+    scopes = set(raw_scope.split() if isinstance(raw_scope, str) else raw_scope)
+    if "community.read" not in scopes:
+        raise HTTPException(status_code=403, detail="Missing community.read scope")
+    if "admins" in _names(realm_groups(claims)):
+        return
+    organization = user.get_organization(community_key)
+    groups = _names(organization_groups(claims, community_key))
+    if (
+        organization
+        and (organization.type or "").lower() == "rec"
+        and groups.intersection({"admins", "managers"})
+    ):
+        return
+    raise HTTPException(status_code=403, detail="Manager access denied for this REC")
 
 
 def get_config(request: Request) -> dict[str, Any]:
@@ -22,6 +86,7 @@ def get_config(request: Request) -> dict[str, Any]:
 
 
 ConfigDep = Annotated[dict[str, Any], Depends(get_config)]
+UserDep = Annotated[JwtUser, Depends(get_user_from_request)]
 
 
 def apply_config_overrides(

@@ -7,7 +7,9 @@ on response models and explicit mapping helpers in route handlers.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -501,3 +503,88 @@ class ErrorResponse(BaseModel):
 
     error: str
     detail: str | None = None
+
+
+# ── Feedback ──────────────────────────────────────────────────────────────────
+
+FeedbackState = Literal["new", "seen", "resolved"]
+
+
+class FeedbackScreenshotPayload(BaseModel):
+    mime_type: str = Field(default="image/png", max_length=64)
+    data_base64: str = Field(min_length=1)
+
+
+class FeedbackContextPayload(BaseModel):
+    page_url: str = Field(min_length=1)
+    page_title: str | None = None
+    page_path: str | None = None
+    locale: str | None = Field(default=None, max_length=32)
+    timezone: str | None = Field(default=None, max_length=64)
+    user_agent: str | None = None
+    viewport_width: int | None = Field(default=None, ge=0)
+    viewport_height: int | None = Field(default=None, ge=0)
+    screen_width: int | None = Field(default=None, ge=0)
+    screen_height: int | None = Field(default=None, ge=0)
+    color_scheme: Literal["light", "dark"] | None = None
+    client_timestamp: datetime | None = None
+    extra: dict = Field(default_factory=dict)
+
+
+class FeedbackCreateRequest(BaseModel):
+    community_key: str = Field(min_length=1, max_length=255)
+    rating: int = Field(ge=0, le=5)
+    comment: str = Field(default="", max_length=4000)
+    context: FeedbackContextPayload
+    screenshot: FeedbackScreenshotPayload | None = None
+
+
+class FeedbackCreateResponse(BaseModel):
+    id: UUID
+    created_at: datetime
+
+
+class FeedbackCommunitiesResponse(BaseModel):
+    communities: list[str]
+
+
+class FeedbackStatusCounts(BaseModel):
+    new: int = 0
+    seen: int = 0
+    resolved: int = 0
+
+
+class FeedbackItemResponse(BaseModel):
+    id: UUID
+    rating: int
+    comment: str | None = None
+    page_url: str
+    page_title: str | None = None
+    page_path: str | None = None
+    locale: str | None = None
+    timezone: str | None = None
+    viewport_width: int | None = None
+    viewport_height: int | None = None
+    screen_width: int | None = None
+    screen_height: int | None = None
+    color_scheme: Literal["light", "dark"] | None = None
+    client_timestamp: datetime | None = None
+    extra: dict = Field(default_factory=dict)
+    has_screenshot: bool = False
+    status: FeedbackState
+    seen_at: datetime | None = None
+    resolved_at: datetime | None = None
+    created_at: datetime
+
+
+class FeedbackListResponse(BaseModel):
+    community_key: str
+    page: int
+    page_size: int
+    total: int
+    counts: FeedbackStatusCounts
+    items: list[FeedbackItemResponse]
+
+
+class FeedbackStatusUpdate(BaseModel):
+    status: Literal["seen", "resolved"]

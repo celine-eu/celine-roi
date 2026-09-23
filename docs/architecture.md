@@ -4,8 +4,9 @@
 system specifications — kWp, location, CAPEX, consumption — it returns 25-year financial
 projections under Italian incentive regimes.
 
-It is a **pure computation service**: it owns no data schema shared with other components,
-calls no other CELINE service, and stores only its own results.
+Its financial pipeline is a **pure computation service**: it owns no data schema shared with
+other components and calls no other CELINE service. Alongside that pipeline, the service owns the
+feedback submitted from its browser application, scoped to the caller's Keycloak REC membership.
 
 ## The pipeline is a strict chain
 
@@ -47,6 +48,7 @@ testing the chain.
 | `engines/` | the computation — `energy.py`, `incentives.py`, `finance.py` |
 | `src/celine/roi/validation/warnings.py` | regulatory and parameter sanity checks |
 | `api/` | the boundary: FastAPI app, request/response schemas, dependencies, one file per route |
+| `api/routes/feedback.py` | authenticated feedback submission and REC-scoped manager review |
 | `config/*.yaml` | the parameters, merged flat at startup by `config_loader.py` |
 
 The source tree itself is the reference for what exists; this table is about what each
@@ -54,7 +56,7 @@ layer is *for*. What must not cross between them is in the companion's knowledge
 
 ## External calls
 
-`pvgis_client.py` is the **only** part of this service that reaches the network: the EU
+`pvgis_client.py` is the **only computation path** that reaches the network: the EU
 PVGIS API, and optionally the Trentino Solar LIDAR API. Both can be bypassed —
 `annual_production_kwh` supplies a synthetic distribution, `rooftop_wkt` selects the
 Trentino path.
@@ -76,7 +78,15 @@ The `regime` field selects the incentive stack:
 The parameter values behind all of this are in `docs/variables-reference.md`, which is the
 reference and is not restated here.
 
-## Persistence is optional
+## Persistence and feedback
 
 If `DATABASE_URL` is unset the service runs and computes normally; only the storing of
-results is lost.
+results is lost. Feedback, unlike calculation, inherently requires persistence: its endpoints
+return 503 when persistence is explicitly disabled.
+
+The feedback row stores its REC key as a first-class column. The browser may choose only one of the
+REC organizations in its verified token. Reading screenshots and advancing an item from `new` to
+`seen` to `resolved` additionally requires `community.read` and either a matching REC
+`admins`/`managers` organization group or the realm `admins` group. `celine-community` repeats its
+own REC authorization before proxying these manager operations; neither service reads the other's
+database.

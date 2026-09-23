@@ -124,46 +124,48 @@ class TestMigrationsMatchTheModel:
         added to the model and forgotten in the migration is invisible until a query
         against it fails in production.
         """
-        from celine.roi.db import Estimate
+        from celine.roi.db import Estimate, FeedbackEntry
 
-        rows = await pool.fetch(
-            "SELECT column_name, is_nullable FROM information_schema.columns "
-            "WHERE table_name = $1",
-            Estimate.__tablename__,
-        )
-        assert rows, f"table {Estimate.__tablename__} does not exist after migrating"
+        for model in (Estimate, FeedbackEntry):
+            rows = await pool.fetch(
+                "SELECT column_name, is_nullable FROM information_schema.columns "
+                "WHERE table_name = $1",
+                model.__tablename__,
+            )
+            assert rows, f"table {model.__tablename__} does not exist after migrating"
 
-        migrated = {r["column_name"] for r in rows}
-        declared = {c.name for c in Estimate.__table__.columns}
+            migrated = {r["column_name"] for r in rows}
+            declared = {c.name for c in model.__table__.columns}
 
-        assert declared == migrated, (
-            "the model and the migrated schema disagree.\n"
-            f"  in the model, not in the database: {sorted(declared - migrated)}\n"
-            f"  in the database, not in the model: {sorted(migrated - declared)}\n"
-            "Autogenerate a migration (`task alembic:sync-model`) and read it before "
-            "applying — see .agents/playbooks/changing-the-database-model.md."
-        )
+            assert declared == migrated, (
+                f"the {model.__tablename__} model and migrated schema disagree.\n"
+                f"  in the model, not in the database: {sorted(declared - migrated)}\n"
+                f"  in the database, not in the model: {sorted(migrated - declared)}\n"
+                "Autogenerate a migration (`task alembic:sync-model`) and read it before "
+                "applying — see .agents/playbooks/changing-the-database-model.md."
+            )
 
     async def test_nullability_matches_the_model(self, pool) -> None:
-        from celine.roi.db import Estimate
+        from celine.roi.db import Estimate, FeedbackEntry
 
-        rows = await pool.fetch(
-            "SELECT column_name, is_nullable FROM information_schema.columns "
-            "WHERE table_name = $1",
-            Estimate.__tablename__,
-        )
-        migrated = {r["column_name"]: r["is_nullable"] == "YES" for r in rows}
-        declared = {c.name: c.nullable for c in Estimate.__table__.columns}
+        for model in (Estimate, FeedbackEntry):
+            rows = await pool.fetch(
+                "SELECT column_name, is_nullable FROM information_schema.columns "
+                "WHERE table_name = $1",
+                model.__tablename__,
+            )
+            migrated = {r["column_name"]: r["is_nullable"] == "YES" for r in rows}
+            declared = {c.name: c.nullable for c in model.__table__.columns}
 
-        mismatched = {
-            name: (declared[name], migrated[name])
-            for name in declared
-            if name in migrated and declared[name] != migrated[name]
-        }
-        assert not mismatched, (
-            f"nullability differs between model and database (declared, migrated): "
-            f"{mismatched}"
-        )
+            mismatched = {
+                name: (declared[name], migrated[name])
+                for name in declared
+                if name in migrated and declared[name] != migrated[name]
+            }
+            assert not mismatched, (
+                f"{model.__tablename__} nullability differs between model and database "
+                f"(declared, migrated): {mismatched}"
+            )
 
 
 # @verifies REQ-0406
@@ -218,6 +220,75 @@ class TestSaveEstimate:
 
         record = await get_estimate(pool, uuid.uuid4())
         assert record is None
+
+
+# @verifies REQ-1102 REQ-1104
+class TestFeedbackPersistence:
+
+    async def test_feedback_round_trip_and_monotonic_status(self, pool) -> None:
+        from celine.roi.api.database import (
+            get_feedback_screenshot,
+            get_feedback_status,
+            list_feedback,
+            save_feedback,
+            update_feedback_status,
+        )
+
+        created = await save_feedback(
+            pool,
+            community_key="persistence-test-rec",
+            user_id="test-user",
+            rating=5,
+            comment="ROI feedback persistence",
+            context={
+                "page_url": "http://roi.celine.localhost/",
+                "page_path": "/",
+                "extra": {"dashboard": "celine-roi"},
+            },
+            screenshot_mime_type="image/png",
+            screenshot_bytes=b"test-screen",
+            client_ip="127.0.0.1",
+        )
+        feedback_id = created["id"]
+        try:
+            listed = await list_feedback(
+                pool,
+                "persistence-test-rec",
+                status=None,
+                page=1,
+                page_size=20,
+            )
+            screenshot = await get_feedback_screenshot(
+                pool, "persistence-test-rec", feedback_id
+            )
+            resolved = await update_feedback_status(
+                pool,
+                "persistence-test-rec",
+                feedback_id,
+                status="resolved",
+                actor_id="manager",
+            )
+            regressed = await update_feedback_status(
+                pool,
+                "persistence-test-rec",
+                feedback_id,
+                status="seen",
+                actor_id="manager",
+            )
+
+            assert listed["total"] == 1
+            assert listed["items"][0]["extra"] == {"dashboard": "celine-roi"}
+            assert screenshot == {
+                "screenshot_bytes": b"test-screen",
+                "screenshot_mime_type": "image/png",
+            }
+            assert resolved is not None and resolved["status"] == "resolved"
+            assert await get_feedback_status(
+                pool, "persistence-test-rec", feedback_id
+            ) == "resolved"
+            assert regressed is None
+        finally:
+            await pool.execute("DELETE FROM feedback_entries WHERE id = $1", feedback_id)
 
 
 # @verifies REQ-0407

@@ -15,6 +15,7 @@ from celine.roi.api.routes import (
     compare,
     energy,
     estimates,
+    feedback,
     finance,
     incentives,
     production,
@@ -85,6 +86,7 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
     app.include_router(capex.router, prefix=prefix, tags=["capex"])
     app.include_router(compare.router, prefix=prefix, tags=["compare"])
     app.include_router(estimates.router, prefix=prefix, tags=["estimates"])
+    app.include_router(feedback.router, prefix=prefix, tags=["feedback"])
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(

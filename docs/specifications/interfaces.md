@@ -219,3 +219,41 @@ the energy summary and the parameters it was run with. A report that omits the p
 cannot be checked against anything later.
 
 *Verified by* `tests/test_cli.py::TestFormatReport`
+
+---
+
+## REQ-11xx — ROI feedback
+
+### REQ-1101 — a feedback item belongs to a verified REC membership
+
+The authenticated browser may list only its own Keycloak organizations of type `rec`, and a
+submission must name one of them. The backend replaces any community value in diagnostic context
+with that verified key before persistence.
+
+*Verified by*
+`tests/test_feedback.py::test_participant_lists_own_recs_and_submits_only_to_one_of_them`
+
+### REQ-1102 — feedback retains its diagnostics and optional screenshot
+
+A submission stores its rating, comment, page diagnostics, authenticated subject and optional
+screenshot. The screenshot is served separately rather than embedded in list responses.
+
+*Verified by*
+`tests/test_feedback.py::test_participant_lists_own_recs_and_submits_only_to_one_of_them`
+
+### REQ-1103 — manager review is authorized for the selected REC
+
+Review requires `community.read` plus `admins` or `managers` in the matching REC organization.
+Realm `admins` may review every REC. A participant or a manager of another REC is denied before a
+feedback row or screenshot is read.
+
+*Verified by*
+`tests/test_feedback.py::test_manager_reviews_only_feedback_from_the_authorized_rec`
+
+### REQ-1104 — review state advances monotonically
+
+Manager workflow state is `new` → `seen` → `resolved`; it cannot move backward. List responses
+contain per-state counts, and stored subject, IP and user-agent diagnostics are not returned.
+
+*Verified by*
+`tests/test_feedback.py::test_manager_reviews_only_feedback_from_the_authorized_rec`

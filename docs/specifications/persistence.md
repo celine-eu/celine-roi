@@ -1,8 +1,8 @@
 # Specifications — persistence
 
-Storing computed estimates is the only thing this service does that is not a computation,
-and it is **optional**. See [index.md](index.md) for what these requirements are and are
-not.
+Storing computed estimates and ROI-screen feedback are the only things this service does that are
+not computations. Persistence remains **optional for calculations**. See [index.md](index.md) for
+what these requirements are and are not.
 
 Everything here is about what happens when the database is absent, unreachable or
 misconfigured, because that is where the design intent lives. The happy path is the easy
@@ -15,7 +15,8 @@ part.
 ### REQ-0401 — the service computes with no database
 
 With persistence disabled, the application starts, serves its documentation, and answers
-computation requests normally. No connection pool is created.
+computation requests normally. No connection pool is created. Feedback collection and review
+answer 503 because they cannot honestly succeed without a store.
 
 Persistence is a place to put results, not a dependency of producing them. A code path
 that assumes a connection exists breaks this.

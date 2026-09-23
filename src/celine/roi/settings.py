@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 
+from celine.sdk.settings.models import OidcSettings
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +18,12 @@ class Settings(BaseSettings):
     )
     database_pool_min: int = 1
     database_pool_max: int = 5
+    jwt_header_name: str = "x-auth-request-access-token"
+    oidc: OidcSettings = OidcSettings(
+        audience=os.getenv("CELINE_OIDC_AUDIENCE", "oauth2_proxy"),
+        client_id=os.getenv("CELINE_OIDC_CLIENT_ID", "oauth2_proxy"),
+        client_secret=os.getenv("CELINE_OIDC_CLIENT_SECRET", ""),
+    )
 
 
 settings = Settings()
