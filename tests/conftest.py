@@ -6,6 +6,7 @@ docs/superpowers/specs/2026-03-25-mvp-design.md
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,11 @@ import pytest
 from celine.roi.config_loader import load_config
 from celine.roi.load_profiles import load_profile_config
 from celine.roi.models import ProductionData, SystemInput
+
+# The suite builds the app with the development defaults (the local database
+# password, the SDK's local Keycloak), which the startup posture check refuses
+# unless the environment says dev (REQ-1201). Read when `create_app` runs.
+os.environ.setdefault("CELINE_ENV", "dev")
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 

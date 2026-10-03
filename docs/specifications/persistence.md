@@ -44,8 +44,8 @@ logs, not in a response.** Nothing will page you.
 ### REQ-0404 — an unset `DATABASE_URL` selects the development default
 
 `Settings.database_url` has a non-empty built-in default pointing at the local
-development database, so a fresh checkout runs with nothing exported. Every deployment
-overrides it through the environment.
+development database, so a fresh checkout run with `CELINE_ENV=dev` (as `task run` does)
+needs nothing else exported. Every deployment overrides it through the environment.
 
 The consequence is that there are **two knobs, not one**:
 
@@ -59,8 +59,10 @@ This is worth stating because the code reads the other way round: the guard in
 `init_pool` is `if not database_url`, which looks like "unset means off". It is not —
 unset means *default*, and only the empty string means off.
 
-The default's credentials are development ones, deliberately committed so the compose
-stack works out of the box. They are not a secret and are not used anywhere real.
+The default's credentials are development ones, deliberately committed so the local
+stack works out of the box. They are not a secret, and outside `CELINE_ENV=dev` the
+service refuses to start with them (REQ-1201): the default is selected only in dev, and
+a deployment must set its own `DATABASE_URL` or `DATABASE_URL=""`.
 
 *Verified by* `tests/test_persistence_optional.py::TestUnsetIsNotTheSameAsDisabled`
 

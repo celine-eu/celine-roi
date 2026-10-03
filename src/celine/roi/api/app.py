@@ -23,6 +23,8 @@ from celine.roi.api.routes import (
     validate,
 )
 from celine.roi.config_loader import load_config
+from celine.roi.posture import enforce_posture
+from celine.roi.settings import settings
 
 # Module-level state populated once per lifespan.
 # Using a plain dict rather than app.state keeps get_app_config() testable
@@ -64,6 +66,10 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
         # With custom config dir
         uvicorn "celine.roi.api.app:create_app('/etc/celine/config')" --factory --port 8000
     """
+    # Refuse development defaults before the lifespan opens the database pool
+    # (REQ-1201). Only CELINE_ENV=dev relaxes this; unset is hardened.
+    enforce_posture(settings)
+
     app = FastAPI(
         title="CELINE ROI API",
         description=(

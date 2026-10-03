@@ -40,8 +40,24 @@ All endpoints are under `/api/v1`. Interactive docs at `/docs`.
 ```bash
 uv sync
 uv run alembic upgrade head
-uv run uvicorn celine.roi.api.app:create_app --factory --reload --port 8013
+CELINE_ENV=dev uv run uvicorn celine.roi.api.app:create_app --factory --reload --port 8013
+# or: task run   (port 8018, sets CELINE_ENV=dev unless it is already set)
 ```
+
+## Environment
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `CELINE_ENV` | Deployment posture; only `dev` accepts the development defaults below (`ENVIRONMENT` is read when it is unset) | unset = **hardened** |
+| `DATABASE_URL` | PostgreSQL for estimates and feedback; `""` disables persistence | local stack, dev password (dev only) |
+| `CELINE_OIDC_BASE_URL`, `CELINE_OIDC_JWKS_URI` | Issuer and keys tokens are verified against | SDK's local Keycloak (dev only) |
+| `CELINE_OIDC_AUDIENCE`, `CELINE_OIDC_CLIENT_ID` | Expected audience | `oauth2_proxy` |
+
+Outside `CELINE_ENV=dev` — including when it is unset — the service refuses to start while
+`DATABASE_URL` carries the local stack's password or the OIDC issuer/JWKS are left at the
+SDK's local default, and lists every such setting at once (REQ-1201). `CELINE_ENV=staging
+task run` is the prod-like mode of the local runner. The check uses `celine.sdk.posture`,
+which needs the celine-sdk release after 1.24.0.
 
 ## Configuration
 

@@ -257,3 +257,28 @@ contain per-state counts, and stored subject, IP and user-agent diagnostics are 
 
 *Verified by*
 `tests/test_feedback.py::test_manager_reviews_only_feedback_from_the_authorized_rec`
+
+---
+
+## REQ-12xx — deployment posture
+
+### REQ-1201 — outside `CELINE_ENV=dev` the service refuses to start on a development default
+
+`create_app` checks its configuration before the lifespan opens the database pool, through
+`celine.sdk.posture`'s `PostureGuard` (`src/celine/roi/posture.py`). It registers:
+
+| Setting | Refused when |
+|---|---|
+| `DATABASE_URL` | its password is a local-stack password (`securepassword123`, `postgres`) or trivially weak |
+| `CELINE_OIDC_BASE_URL`, `CELINE_OIDC_JWKS_URI` | not stated, so the SDK's local Keycloak default is in use |
+
+The signal is `CELINE_ENV`, then `ENVIRONMENT`; the first non-empty one wins. **Only `dev`
+relaxes**: unset, empty, `staging`, `prod` or a typo is hardened. Hardened, startup raises
+`InsecureConfiguration` naming every violation at once; in dev the same list is logged as
+one warning and the service starts. `DATABASE_URL=""` (no persistence, REQ-0401) carries
+no password and is accepted everywhere. `task run` exports `CELINE_ENV=dev` unless it is
+already set.
+
+This check is about configuration only. Which routes require a token is not changed by it.
+
+*Verified by* `tests/test_posture.py::TestOnlyDevAcceptsDevelopmentDefaults`

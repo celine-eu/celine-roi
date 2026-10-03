@@ -80,8 +80,9 @@ reference and is not restated here.
 
 ## Persistence and feedback
 
-If `DATABASE_URL` is unset the service runs and computes normally; only the storing of
-results is lost. Feedback, unlike calculation, inherently requires persistence: its endpoints
+If `DATABASE_URL` is set to the empty string the service runs and computes normally; only
+the storing of results is lost. Unset selects the local development database, which is
+accepted only with `CELINE_ENV=dev` (REQ-0404, REQ-1201). Feedback, unlike calculation, inherently requires persistence: its endpoints
 return 503 when persistence is explicitly disabled.
 
 The feedback row stores its REC key as a first-class column. The browser may choose only one of the
