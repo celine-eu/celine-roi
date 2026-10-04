@@ -140,10 +140,12 @@ async def run_scenario(
         import os
         from pathlib import Path
 
-        from celine.roi.load_profiles import load_meter_data_profile
+        from celine.roi.load_profiles import load_meter_data_profile, resolve_profile
 
         config_dir = Path(os.environ.get("CELINE_CONFIG_DIR", "config"))
-        meter_path = config_dir / "load_profiles" / system_input.custom_profile_dir
+        meter_path = resolve_profile(
+            config_dir / "load_profiles", system_input.custom_profile_dir
+        )
         profile_info = load_meter_data_profile(meter_path)
         estimated = profile_info["daily_avg_kwh"] * 365
         logger.info(

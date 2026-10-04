@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -10,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from celine.roi.api.limits import PublicLimitsMiddleware
 from celine.roi.api.routes import (
     capex,
     compare,
@@ -31,6 +35,10 @@ from celine.roi.settings import settings
 # without a live Request object.
 _state: dict[str, Any] = {}
 
+logger = logging.getLogger(__name__)
+
+PURGE_INTERVAL_SECONDS = 3600
+
 
 def get_app_config() -> dict[str, Any]:
     """Return the config dict loaded at startup. Used by deps.get_config."""
@@ -41,12 +49,41 @@ def get_app_config() -> dict[str, Any]:
 async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     config_dir = Path(app.state.config_dir)
     _state["config"] = load_config(config_dir)
-    from celine.roi.api.database import close_pool, init_pool
+    from celine.roi.api.database import close_pool, get_pool, init_pool
 
     await init_pool()
+    purge = asyncio.create_task(_purge_client_ips()) if get_pool() is not None else None
     yield
+    if purge is not None:
+        purge.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await purge
     await close_pool()
     _state.clear()
+
+
+async def _purge_client_ips() -> None:
+    """Clear expired client addresses at startup and hourly after (REQ-1306)."""
+    from celine.roi.api.database import get_pool, purge_client_ips
+
+    while True:
+        pool = get_pool()
+        if pool is not None:
+            try:
+                estimates, feedback = await purge_client_ips(
+                    pool, settings.client_ip_retention_days
+                )
+                if estimates or feedback:
+                    logger.info(
+                        "Cleared client_ip on %d estimates and %d feedback rows "
+                        "older than %d days",
+                        estimates,
+                        feedback,
+                        settings.client_ip_retention_days,
+                    )
+            except Exception:
+                logger.exception("Failed to clear expired client addresses")
+        await asyncio.sleep(PURGE_INTERVAL_SECONDS)
 
 
 def create_app(config_dir: str | Path = "config") -> FastAPI:
@@ -81,6 +118,13 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
         lifespan=lifespan,
     )
     app.state.config_dir = str(config_dir)
+    app.add_middleware(
+        PublicLimitsMiddleware,
+        calculators_per_minute=settings.rate_limit_calculators_per_minute,
+        feedback_per_minute=settings.rate_limit_feedback_per_minute,
+        calculators_max_body=settings.max_body_bytes_calculators,
+        feedback_max_body=settings.max_body_bytes_feedback,
+    )
 
     prefix = "/api/v1"
     app.include_router(production.router, prefix=prefix, tags=["production"])

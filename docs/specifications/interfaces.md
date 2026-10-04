@@ -47,7 +47,8 @@ produce any answer it liked and have it come back looking authoritative. An unde
 key in the request body is ignored rather than merged.
 
 Widening this set is a policy decision, and the test states the set explicitly so that
-widening it shows up as a deliberate diff.
+widening it shows up as a deliberate diff. A `compare` scenario is held to the same set
+(REQ-1308).
 
 *Verified by* `tests/test_api_boundary.py::TestOverridableConfigIsAClosedSet`
 
@@ -170,7 +171,7 @@ carrying the service's own message.
 ### REQ-0901 — a comparison is a base case plus named variants
 
 `compare` runs the base case and each named scenario, returning every full result
-alongside a summary. Each scenario's overrides are separated into those that change the
+alongside a summary. Through the API, what a scenario may override is closed (REQ-1308). Each scenario's overrides are separated into those that change the
 system and those that change the configuration, and both kinds may appear together.
 
 *Verified by* `tests/test_comparator.py::TestSplitOverrides`,
@@ -292,6 +293,7 @@ contain per-state counts, and stored subject, IP and user-agent diagnostics are 
 |---|---|
 | `DATABASE_URL` | its password is a local-stack password (`securepassword123`, `postgres`) or trivially weak |
 | `CELINE_OIDC_BASE_URL`, `CELINE_OIDC_JWKS_URI` | not stated, so the SDK's local Keycloak default is in use |
+| `FORWARDED_ALLOW_IPS` | it contains `*` (REQ-1301) |
 
 The signal is `CELINE_ENV`, then `ENVIRONMENT`; the first non-empty one wins. **Only `dev`
 relaxes**: unset, empty, `staging`, `prod` or a typo is hardened. Hardened, startup raises
@@ -303,3 +305,94 @@ already set.
 This check is about configuration only. Which routes require a token is not changed by it.
 
 *Verified by* `tests/test_posture.py::TestOnlyDevAcceptsDevelopmentDefaults`
+
+---
+
+## REQ-13xx — the public surface
+
+The calculators take no token: the service is a public calculator anyone may use before
+joining a community. These requirements bound what one anonymous caller can read, store and
+cost. The edge in front of the service carries its own rate limit; these hold without it.
+
+### REQ-1301 — the client address is the connection's peer, never a request header
+
+Every address the service records or limits on is `request.client.host` — the peer as
+uvicorn resolved it. `X-Forwarded-For` and `X-Real-IP` are written by whoever sends the
+request, so neither is read. Behind an ingress, uvicorn replaces the peer with the forwarded
+client only when the connection comes from an address in `FORWARDED_ALLOW_IPS` (default
+`127.0.0.1`), so setting it to the ingress's range is a deployment requirement: without it
+every caller shares the ingress's address and one rate limit. `FORWARDED_ALLOW_IPS=*`
+lets any caller pick its own address and is refused outside `CELINE_ENV=dev` (REQ-1201).
+
+*Verified by* `tests/test_public_limits.py::TestTheClientAddressIsThePeer`,
+`tests/test_feedback.py::TestTheStoredAddressIsNotTheCallersChoice`
+
+### REQ-1302 — each client address has a per-minute budget
+
+Every `POST` under `/api/v1/` other than feedback is a calculator and shares one budget
+per address (`RATE_LIMIT_CALCULATORS_PER_MINUTE`, default 30); `POST /api/v1/feedback`
+has its own (`RATE_LIMIT_FEEDBACK_PER_MINUTE`, default 5). Over budget the answer is
+**429** with `Retry-After` in seconds. A request counts whether or not it is valid. Reads
+are not limited. The budget lives in the process: one replica is the whole service.
+
+*Verified by* `tests/test_public_limits.py::TestCallsArePerAddressRateLimited`
+
+### REQ-1303 — request bodies are bounded
+
+A calculator body over `MAX_BODY_BYTES_CALCULATORS` (64 KiB) and a feedback body over
+`MAX_BODY_BYTES_FEEDBACK` (4 MiB) is refused with **413**, whether the size is declared
+or the body is chunked, before the route parses it.
+
+*Verified by* `tests/test_public_limits.py::TestBodiesAreBounded`
+
+### REQ-1304 — stored estimates are readable only by a platform administrator
+
+An estimate holds what an anonymous caller typed — a location, a household's hourly
+consumption, a budget. `GET /estimates` and `GET /estimates/{id}` require a token with the
+realm role `platform-admin` (as REQ-1105): **401** without a token, **403** without the
+role. Nothing else in the platform reads them.
+
+*Verified by* `tests/test_public_inputs.py::TestStoredEstimatesArePlatformAdminOnly`
+
+### REQ-1305 — what one call can store, and compute, is bounded
+
+- An estimate stores the request and the response's **summary** — per scenario for
+  `compare` — never the hourly series the caller already received. A full `scenario`
+  response is ~650 KiB; what is stored is a few hundred bytes.
+- Above `ESTIMATES_MAX_WRITES_PER_MINUTE` (default 60) stored estimates per minute for the
+  whole process, the caller still gets its result and nothing is stored; a warning is
+  logged.
+- `compare` takes 1 to 6 scenarios, with names of at most 100 characters.
+- A feedback screenshot is at most 2 MiB decoded; `rooftop_wkt` at most 20 000 characters.
+
+*Verified by* `tests/test_public_inputs.py::TestStorageIsBounded`
+
+### REQ-1306 — the caller's address is stored for reference, and cleared after a retention
+
+`scenario` and `compare` store the caller's address (REQ-1301) with the estimate, as
+feedback already did. It is personal data kept for reference only, so it is cleared from
+estimates and feedback once older than `CLIENT_IP_RETENTION_DAYS` (default 30), at startup
+and hourly after; the row itself stays.
+
+*Verified by* `tests/test_public_inputs.py::TestTheCallerAddressIsStored`,
+`tests/test_estimates.py::TestClientAddressRetention`
+
+### REQ-1307 — a load profile is named, never addressed
+
+Every profile a request can name — `config_overrides.load_profile`, and the configured
+`load_profile`, `load_profile_by_type` and `heat_pump_profile` — resolves to an existing
+entry of `config/load_profiles/` with a plain name (one segment, no leading dot, no `..`,
+no link out of the directory). Anything else is **400** with a message that carries the
+name at most, never a path. The meter-data folder (`custom_profile_dir`) is not part of the
+API: the calculator processes meter exports in the browser and sends hourly values.
+
+*Verified by* `tests/test_public_inputs.py::TestProfilesAreNamedNotAddressed`
+
+### REQ-1308 — a comparison scenario may vary only what a request could set
+
+Each `compare` scenario's overrides are limited to the fields of the system input and of
+`config_overrides` (REQ-0203), plus `optimize_profile`, and are validated with the same
+bounds as a request of their own. Tax rates, depreciation, the useful life and the profile
+maps are not overridable here either, and coordinates stay in Italy.
+
+*Verified by* `tests/test_public_inputs.py::TestComparisonOverridesAreRequestFields`

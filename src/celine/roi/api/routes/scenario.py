@@ -5,41 +5,16 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
-from celine.roi.api.database import get_pool, save_estimate
-from celine.roi.api.deps import ConfigDep, apply_config_overrides
+from celine.roi.api.deps import ConfigDep, apply_config_overrides, client_ip
 from celine.roi.api.routes._converters import to_system_input
+from celine.roi.api.routes._persist import persist_estimate
 from celine.roi.api.schemas import ErrorResponse, ScenarioResultResponse, ScenarioRunRequest
 from celine.roi.main import run_scenario
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-async def _persist_estimate(
-    endpoint: str,
-    status: str,
-    request_body: dict,
-    response_body: dict | None,
-    duration_ms: int,
-    error_message: str | None = None,
-) -> None:
-    pool = get_pool()
-    if pool is None:
-        return
-    try:
-        await save_estimate(
-            pool=pool,
-            endpoint=endpoint,
-            status=status,
-            request=request_body,
-            response=response_body,
-            duration_ms=duration_ms,
-            error_message=error_message,
-        )
-    except Exception:
-        logger.exception("Failed to persist estimate")
 
 
 @router.post(
@@ -65,10 +40,12 @@ async def run_scenario_endpoint(
     request: ScenarioRunRequest,
     config: ConfigDep,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ) -> ScenarioResultResponse:
     effective_config = apply_config_overrides(config, request.config_overrides)
     system_input = to_system_input(request.system)
     request_body = request.model_dump(mode="json")
+    caller = client_ip(http_request)
 
     t0 = time.monotonic()
     try:
@@ -77,12 +54,13 @@ async def run_scenario_endpoint(
         duration_ms = int((time.monotonic() - t0) * 1000)
         status_code = {ConnectionError: 502, TimeoutError: 504, ValueError: 400}.get(type(exc), 500)
         background_tasks.add_task(
-            _persist_estimate,
+            persist_estimate,
             endpoint="scenario",
             status="error",
             request_body=request_body,
             response_body=None,
             duration_ms=duration_ms,
+            client_ip=caller,
             error_message=str(exc),
         )
         if isinstance(exc, AssertionError):
@@ -92,12 +70,13 @@ async def run_scenario_endpoint(
     duration_ms = int((time.monotonic() - t0) * 1000)
     response_obj = ScenarioResultResponse.from_domain(result)
     background_tasks.add_task(
-        _persist_estimate,
+        persist_estimate,
         endpoint="scenario",
         status="success",
         request_body=request_body,
         response_body=response_obj.model_dump(mode="json"),
         duration_ms=duration_ms,
+        client_ip=caller,
     )
 
     return response_obj

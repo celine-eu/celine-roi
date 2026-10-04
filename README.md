@@ -31,8 +31,8 @@ All endpoints are under `/api/v1`. Interactive docs at `/docs`.
 | `/api/v1/validate` | POST | Validate input parameters |
 | `/api/v1/scenario` | POST | Run full scenario (production + energy + incentives + finance) |
 | `/api/v1/compare` | POST | Compare multiple scenarios side by side |
-| `/api/v1/estimates` | GET | List saved estimates |
-| `/api/v1/estimates/{id}` | GET | Retrieve a saved estimate |
+| `/api/v1/estimates` | GET | List saved estimates (realm role `platform-admin`) |
+| `/api/v1/estimates/{id}` | GET | Retrieve a saved estimate (realm role `platform-admin`) |
 | `/health` | GET | Health check |
 
 ## Quick Start
@@ -52,12 +52,27 @@ CELINE_ENV=dev uv run uvicorn celine.roi.api.app:create_app --factory --reload -
 | `DATABASE_URL` | PostgreSQL for estimates and feedback; `""` disables persistence | local stack, dev password (dev only) |
 | `CELINE_OIDC_BASE_URL`, `CELINE_OIDC_JWKS_URI` | Issuer and keys tokens are verified against | SDK's local Keycloak (dev only) |
 | `CELINE_OIDC_AUDIENCE`, `CELINE_OIDC_CLIENT_ID` | Expected audience | `oauth2_proxy` |
+| `FORWARDED_ALLOW_IPS` | Proxies whose `X-Forwarded-For` uvicorn trusts; set it to the ingress's range; `*` is refused outside dev | `127.0.0.1` |
+| `RATE_LIMIT_CALCULATORS_PER_MINUTE`, `RATE_LIMIT_FEEDBACK_PER_MINUTE` | Requests per client address per minute | 30, 5 |
+| `MAX_BODY_BYTES_CALCULATORS`, `MAX_BODY_BYTES_FEEDBACK` | Largest request body | 64 KiB, 4 MiB |
+| `ESTIMATES_MAX_WRITES_PER_MINUTE` | Stored estimates per minute, above which results are served but not stored | 60 |
+| `CLIENT_IP_RETENTION_DAYS` | Age after which a stored client address is cleared | 30 |
 
 Outside `CELINE_ENV=dev` — including when it is unset — the service refuses to start while
 `DATABASE_URL` carries the local stack's password or the OIDC issuer/JWKS are left at the
-SDK's local default, and lists every such setting at once (REQ-1201). `CELINE_ENV=staging
+SDK's local default, or `FORWARDED_ALLOW_IPS` contains `*`, and lists every such setting
+at once (REQ-1201). `CELINE_ENV=staging
 task run` is the prod-like mode of the local runner. The check uses `celine.sdk.posture`,
 which needs the celine-sdk release after 1.24.0.
+
+### Public by design
+
+The calculators take no token. What an anonymous caller can cost the service is bounded
+per client address — rate limits, body sizes, what is stored — and stored estimates are
+readable only with the realm role `platform-admin` (REQ-13xx in
+`docs/specifications/interfaces.md`). The client address is the one uvicorn resolves, so
+behind an ingress **`FORWARDED_ALLOW_IPS` is a deployment requirement**: without it every
+visitor shares the ingress's address and one rate limit.
 
 ## Configuration
 

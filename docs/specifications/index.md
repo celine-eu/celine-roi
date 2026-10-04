@@ -37,6 +37,7 @@ behaviour was correct and writing the requirement to it.
 | `REQ-10xx` | the command line | [interfaces.md](interfaces.md) |
 | `REQ-11xx` | ROI feedback | [interfaces.md](interfaces.md) |
 | `REQ-12xx` | deployment posture | [interfaces.md](interfaces.md) |
+| `REQ-13xx` | the public surface | [interfaces.md](interfaces.md) |
 
 An identifier is never reused and never renumbered. A requirement that stops being true
 is struck through here with the change that removed it, rather than deleted — the number

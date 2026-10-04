@@ -19,6 +19,7 @@ from celine.roi.api.database import (
 )
 from celine.roi.api.deps import (
     UserDep,
+    client_ip,
     rec_community_keys,
     require_rec_manager,
     require_rec_member,
@@ -43,13 +44,6 @@ def _require_pool():
     if pool is None:
         raise HTTPException(status_code=503, detail="ROI feedback persistence is not configured")
     return pool
-
-
-def _client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
-    if forwarded:
-        return forwarded
-    return request.client.host if request.client else None
 
 
 @router.get("/feedback/communities", response_model=FeedbackCommunitiesResponse)
@@ -87,7 +81,7 @@ async def create_feedback(
         context=context,
         screenshot_mime_type=screenshot_mime_type,
         screenshot_bytes=screenshot_bytes,
-        client_ip=_client_ip(request),
+        client_ip=client_ip(request),
     )
     return FeedbackCreateResponse.model_validate(created)
 

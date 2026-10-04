@@ -331,8 +331,10 @@ Negative consumption is rejected.
 
 ### REQ-0804 — a caller may supply its own load profile
 
-A caller may pass 24 mean hourly values directly, or name a directory of daily meter
-readings in the C2G / e-distribuzione export format, instead of using a named profile.
+A caller may pass 24 mean hourly values directly, or — as a library caller, not through
+the API (REQ-1307) — name a directory of daily meter readings in the C2G /
+e-distribuzione export format inside `config/load_profiles/`, instead of using a named
+profile.
 Manual hourly values take priority over a meter directory. A meter export that cannot be
 parsed is skipped rather than failing the whole folder.
 

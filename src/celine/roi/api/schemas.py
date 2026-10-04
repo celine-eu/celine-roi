@@ -73,7 +73,12 @@ class ConfigOverrides(BaseModel):
     )
     load_profile: str | None = Field(
         default=None,
-        description="Load profile filename (e.g., 'residential_heat_pump.json')",
+        max_length=100,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*\.json$",
+        description=(
+            "Load profile filename in the server's profile directory "
+            "(e.g., 'residential_heat_pump.json')"
+        ),
     )
     detrazione_enabled: bool | None = Field(
         default=None,
@@ -163,6 +168,7 @@ class SystemInputRequest(BaseModel):
     )
     rooftop_wkt: str | None = Field(
         default=None,
+        max_length=20_000,
         description="WKT polygon of rooftop for Trentino Solar LIDAR API (Trentino only)",
     )
     heat_pump_kwh_annual: float = Field(
@@ -199,17 +205,6 @@ class SystemInputRequest(BaseModel):
             "consumption in kWh."
         ),
     )
-    custom_profile_dir: str | None = Field(
-        default=None,
-        max_length=200,
-        description=(
-            "Personal consumption profile from smart meter data: folder name "
-            "inside config/load_profiles/ containing daily JSON files "
-            "(YYYY-MM-DD.json format from C2G/e-distribuzione). "
-            "Conventionally named after the POD the readings came from."
-        ),
-    )
-
     @model_validator(mode="after")
     def validate_loan_consistency(self) -> "SystemInputRequest":
         if self.equity_fraction < 1.0:
@@ -510,9 +505,13 @@ class ErrorResponse(BaseModel):
 FeedbackState = Literal["new", "seen", "resolved"]
 
 
+# 2 MiB decoded, in base64 characters (REQ-1305).
+SCREENSHOT_MAX_BASE64 = 4 * ((2 * 1024 * 1024 + 2) // 3)
+
+
 class FeedbackScreenshotPayload(BaseModel):
     mime_type: str = Field(default="image/png", max_length=64)
-    data_base64: str = Field(min_length=1)
+    data_base64: str = Field(min_length=1, max_length=SCREENSHOT_MAX_BASE64)
 
 
 class FeedbackContextPayload(BaseModel):

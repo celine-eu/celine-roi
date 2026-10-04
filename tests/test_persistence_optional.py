@@ -25,6 +25,8 @@ from fastapi.testclient import TestClient
 
 from celine.roi.api.app import create_app
 
+from .conftest import as_platform_admin
+
 _SCENARIO_BODY = {
     "system": {
         "kwp": 10.0,
@@ -77,7 +79,7 @@ class TestServiceRunsWithoutADatabase:
 class TestRetrievalEndpointsDegradeCleanly:
 
     def test_list_returns_503_not_500(self, persistence_disabled) -> None:
-        with TestClient(create_app()) as client:
+        with TestClient(as_platform_admin(create_app())) as client:
             resp = client.get("/api/v1/estimates")
 
         assert resp.status_code == 503
@@ -86,7 +88,7 @@ class TestRetrievalEndpointsDegradeCleanly:
     def test_get_by_id_returns_503_not_500(self, persistence_disabled) -> None:
         import uuid
 
-        with TestClient(create_app()) as client:
+        with TestClient(as_platform_admin(create_app())) as client:
             resp = client.get(f"/api/v1/estimates/{uuid.uuid4()}")
 
         assert resp.status_code == 503
@@ -103,7 +105,7 @@ class TestAFailedWriteDoesNotFailTheRequest:
         A broken write must show up in the logs, not in the caller's response — this is
         what makes the write safe to attempt at all.
         """
-        import celine.roi.api.routes.scenario as scenario_mod
+        import celine.roi.api.routes._persist as persist_mod
 
         class _FakePool:
             pass
@@ -111,8 +113,8 @@ class TestAFailedWriteDoesNotFailTheRequest:
         async def _exploding_save(**kwargs):
             raise RuntimeError("write failed")
 
-        monkeypatch.setattr(scenario_mod, "get_pool", lambda: _FakePool())
-        monkeypatch.setattr(scenario_mod, "save_estimate", _exploding_save)
+        monkeypatch.setattr(persist_mod, "get_pool", lambda: _FakePool())
+        monkeypatch.setattr(persist_mod, "save_estimate", _exploding_save)
 
         with TestClient(create_app()) as client:
             resp = client.post("/api/v1/scenario", json=_SCENARIO_BODY)

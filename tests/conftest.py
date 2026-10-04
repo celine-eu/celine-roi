@@ -119,3 +119,20 @@ def hourly_production() -> ProductionData:
 def profile_config() -> dict:
     """PVGIS residential load profile config."""
     return load_profile_config(PROFILE_PATH)
+
+
+def as_platform_admin(app):
+    """Authenticate every request to ``app`` as a holder of the realm role ``platform-admin``.
+
+    Stored estimates are readable only with that role (REQ-1304); tests about what the
+    retrieval endpoints return, rather than who may call them, use this.
+    """
+    from celine.sdk.auth import JwtUser
+
+    from celine.roi.api.deps import get_user_from_request
+
+    claims = {"sub": "test-platform-admin", "realm_access": {"roles": ["platform-admin"]}}
+    app.dependency_overrides[get_user_from_request] = lambda: JwtUser(
+        sub="test-platform-admin", organizations=[], claims=claims
+    )
+    return app

@@ -56,6 +56,7 @@ async def save_estimate(
     response: dict[str, Any] | None,
     duration_ms: int,
     error_message: str | None = None,
+    client_ip: str | None = None,
 ) -> uuid.UUID:
     """INSERT one estimate row and return its UUID.
 
@@ -67,14 +68,17 @@ async def save_estimate(
         response: Response payload dict to store as JSONB, or None on error.
         duration_ms: Request processing time in milliseconds.
         error_message: Human-readable error description when status is "error".
+        client_ip: The caller's address (REQ-1301), kept for reference only and
+            cleared after ``client_ip_retention_days`` (REQ-1306).
 
     Returns:
         UUID of the newly created estimate row.
     """
     row = await pool.fetchrow(
         """
-        INSERT INTO estimates (endpoint, status, request, response, error_message, duration_ms)
-        VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6)
+        INSERT INTO estimates
+            (endpoint, status, request, response, error_message, duration_ms, client_ip)
+        VALUES ($1, $2, $3::jsonb, $4::jsonb, $5, $6, $7)
         RETURNING id
         """,
         endpoint,
@@ -83,8 +87,26 @@ async def save_estimate(
         json.dumps(response) if response is not None else None,
         error_message,
         duration_ms,
+        client_ip,
     )
     return row["id"]
+
+
+async def purge_client_ips(pool: asyncpg.Pool, retention_days: int) -> tuple[int, int]:
+    """Clear stored client addresses older than ``retention_days`` (REQ-1306).
+
+    The address is personal data kept only for reference, so it goes long before
+    the row does. Returns how many estimate and feedback rows were cleared.
+    """
+    cleared = []
+    for table in ("estimates", "feedback_entries"):
+        status = await pool.execute(
+            f"UPDATE {table} SET client_ip = NULL "
+            "WHERE client_ip IS NOT NULL AND created_at < now() - make_interval(days => $1)",
+            retention_days,
+        )
+        cleared.append(int(status.split()[-1]))
+    return cleared[0], cleared[1]
 
 
 async def get_estimate(

@@ -85,6 +85,10 @@ the storing of results is lost. Unset selects the local development database, wh
 accepted only with `CELINE_ENV=dev` (REQ-0404, REQ-1201). Feedback, unlike calculation, inherently requires persistence: its endpoints
 return 503 when persistence is explicitly disabled.
 
+A stored estimate keeps the request, the response's summary and the caller's address, which
+is cleared after a retention; only the realm role `platform-admin` reads them back
+(REQ-1304 … REQ-1306).
+
 The feedback row stores its REC key as a first-class column. The browser may choose only one of the
 REC organizations in its verified token. Reading screenshots and advancing an item from `new` to
 `seen` to `resolved` additionally requires `community.read` and either a matching REC

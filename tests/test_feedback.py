@@ -311,3 +311,27 @@ class TestReviewIsGrantedPerOrganizationOrByThePlatformRole:
         assert status(ORG_ADMIN, COMMUNITY_KEY) == 200
         assert status(ORG_ADMIN, OTHER_REC) == 403
         assert status(LEGACY_REALM_ADMIN, COMMUNITY_KEY) == 403
+
+
+class TestTheStoredAddressIsNotTheCallersChoice:
+    """@verifies REQ-1301"""
+
+    def test_x_forwarded_for_does_not_reach_the_row(self, client, monkeypatch) -> None:
+        test_client, _ = client
+        stored: dict = {}
+
+        async def fake_save(pool, **kwargs):
+            stored.update(kwargs)
+            return {"id": FEEDBACK_ID, "created_at": datetime.now(UTC)}
+
+        import celine.roi.api.routes.feedback as feedback_routes
+
+        monkeypatch.setattr(feedback_routes, "get_pool", lambda: object())
+        monkeypatch.setattr(feedback_routes, "save_feedback", fake_save)
+
+        created = test_client.post(
+            "/api/v1/feedback", json=_payload(), headers={"X-Forwarded-For": "198.51.100.1"}
+        )
+
+        assert created.status_code == 201
+        assert stored["client_ip"] == "testclient"  # the TestClient's peer

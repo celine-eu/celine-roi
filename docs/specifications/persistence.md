@@ -95,8 +95,10 @@ can explain it.
 
 ### REQ-0406 — an estimate is retrievable exactly as it was stored
 
-A saved estimate returns with its endpoint, status, request body, response body, duration
-and creation time intact, including the JSON structure of the request and response. An
+A saved estimate returns with its endpoint, status, request body, stored response, duration,
+client address and creation time intact, including the JSON structure of the request and
+response. What `scenario` and `compare` store as the response is its summary (REQ-1305), and
+reading it requires the `platform-admin` role (REQ-1304). An
 unknown identifier is a 404. A failed computation is stored too, with its error message
 and a null response.
 

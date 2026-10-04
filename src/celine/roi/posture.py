@@ -34,6 +34,12 @@ def posture_guard(settings: Settings, env: str | None = None) -> PostureGuard:
     guard = PostureGuard(SERVICE, env=env)
     guard.forbid_dev_database_url("DATABASE_URL", settings.database_url)
     guard.require_explicit_oidc(settings.oidc)
+    if "*" in {ip.strip() for ip in settings.forwarded_allow_ips.split(",")}:
+        guard.add(
+            "FORWARDED_ALLOW_IPS",
+            "trusts X-Forwarded-For from every peer, so a caller picks its own address",
+            "set it to the ingress's address range (REQ-1301)",
+        )
     return guard
 
 

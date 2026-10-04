@@ -13,6 +13,8 @@ from urllib.parse import urlsplit
 import pytest
 from fastapi.testclient import TestClient
 
+from .conftest import as_platform_admin
+
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://celine:celine@localhost:25432/celine",
@@ -108,7 +110,7 @@ def api_client(app_database_url):
     """A TestClient, lifespan entered, whose pool is against the test database."""
     from celine.roi.api.app import create_app
 
-    with TestClient(create_app()) as client:
+    with TestClient(as_platform_admin(create_app())) as client:
         yield client
 
 
@@ -395,7 +397,7 @@ class TestEstimatesAPI:
 
         from celine.roi.api.app import create_app
 
-        app = create_app()
+        app = as_platform_admin(create_app())
         client = TestClient(app)
 
         resp = client.get("/api/v1/estimates")
@@ -408,7 +410,7 @@ class TestScenarioPersistence:
     async def test_scenario_saves_estimate(self, app_database_url, monkeypatch) -> None:
         """POST /scenario should fire a background task that saves the estimate."""
         import celine.roi.api.database as db_mod
-        import celine.roi.api.routes.scenario as scenario_mod
+        import celine.roi.api.routes._persist as persist_mod
 
         saved: list[dict] = []
         original_save = db_mod.save_estimate
@@ -418,8 +420,8 @@ class TestScenarioPersistence:
             saved.append(kwargs)
             return result
 
-        # Patch on the scenario module — the direct import binds there, not on database
-        monkeypatch.setattr(scenario_mod, "save_estimate", capture_save)
+        # Patch where the write is made — the direct import binds there, not on database
+        monkeypatch.setattr(persist_mod, "save_estimate", capture_save)
 
         from celine.roi.api.app import create_app
 
@@ -451,7 +453,7 @@ class TestComparePersistence:
     async def test_compare_saves_estimate(self, app_database_url, monkeypatch) -> None:
         """POST /compare should fire a background task that saves the estimate."""
         import celine.roi.api.database as db_mod
-        import celine.roi.api.routes.compare as compare_mod
+        import celine.roi.api.routes._persist as persist_mod
 
         saved: list[dict] = []
         original_save = db_mod.save_estimate
@@ -461,8 +463,8 @@ class TestComparePersistence:
             saved.append(kwargs)
             return result
 
-        # Patch on the compare module — the direct import binds there, not on database
-        monkeypatch.setattr(compare_mod, "save_estimate", capture_save)
+        # Patch where the write is made — the direct import binds there, not on database
+        monkeypatch.setattr(persist_mod, "save_estimate", capture_save)
 
         from celine.roi.api.app import create_app
 
@@ -490,3 +492,55 @@ class TestComparePersistence:
             assert len(saved) == 1
             assert saved[0]["endpoint"] == "compare"
             assert saved[0]["status"] == "success"
+
+
+# @verifies REQ-1306
+class TestClientAddressRetention:
+
+    async def test_the_address_is_stored_then_cleared_after_retention(self, pool) -> None:
+        from celine.roi.api.database import get_estimate, purge_client_ips, save_estimate
+
+        old = await save_estimate(
+            pool=pool, endpoint="scenario", status="success", request={},
+            response=None, duration_ms=1, client_ip="203.0.113.7",
+        )
+        recent = await save_estimate(
+            pool=pool, endpoint="scenario", status="success", request={},
+            response=None, duration_ms=1, client_ip="203.0.113.8",
+        )
+        try:
+            assert (await get_estimate(pool, old))["client_ip"] == "203.0.113.7"
+            await pool.execute(
+                "UPDATE estimates SET created_at = now() - interval '31 days' WHERE id = $1", old
+            )
+
+            cleared, _ = await purge_client_ips(pool, 30)
+
+            assert cleared >= 1
+            assert (await get_estimate(pool, old))["client_ip"] is None
+            assert (await get_estimate(pool, recent))["client_ip"] == "203.0.113.8"
+            assert await get_estimate(pool, old) is not None  # the row itself stays
+        finally:
+            await pool.execute("DELETE FROM estimates WHERE id = ANY($1)", [old, recent])
+
+    async def test_feedback_addresses_follow_the_same_retention(self, pool) -> None:
+        from celine.roi.api.database import purge_client_ips, save_feedback
+
+        created = await save_feedback(
+            pool, community_key="retention-test-rec", user_id="u", rating=3, comment=None,
+            context={"page_url": "http://rec.example.org/"}, screenshot_mime_type=None,
+            screenshot_bytes=None, client_ip="203.0.113.9",
+        )
+        try:
+            await pool.execute(
+                "UPDATE feedback_entries SET created_at = now() - interval '31 days' "
+                "WHERE id = $1",
+                created["id"],
+            )
+            _, cleared = await purge_client_ips(pool, 30)
+            assert cleared >= 1
+            assert await pool.fetchval(
+                "SELECT client_ip FROM feedback_entries WHERE id = $1", created["id"]
+            ) is None
+        finally:
+            await pool.execute("DELETE FROM feedback_entries WHERE id = $1", created["id"])

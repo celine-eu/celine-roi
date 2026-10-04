@@ -26,6 +26,17 @@ def extract_token(request: Request) -> str | None:
     return None
 
 
+def client_ip(request: Request) -> str | None:
+    """The connection's peer as uvicorn resolved it, never a request header.
+
+    ``X-Forwarded-For`` is written by whoever sends the request. uvicorn replaces
+    the peer with the forwarded client only when the connection comes from an
+    address in ``FORWARDED_ALLOW_IPS`` (REQ-1301); the rate limits key on the
+    same address.
+    """
+    return request.client.host if request.client else None
+
+
 def get_user_from_request(request: Request) -> JwtUser:
     token = extract_token(request)
     if not token:
@@ -88,6 +99,20 @@ def get_config(request: Request) -> dict[str, Any]:
 
 ConfigDep = Annotated[dict[str, Any], Depends(get_config)]
 UserDep = Annotated[JwtUser, Depends(get_user_from_request)]
+
+
+def require_platform_admin(user: UserDep) -> JwtUser:
+    """Only the realm role `platform-admin` reads stored estimates (REQ-1304).
+
+    An estimate holds what an anonymous caller typed: a location, a household's
+    hourly consumption, a budget.
+    """
+    if not is_platform_admin(user.claims or {}):
+        raise HTTPException(status_code=403, detail="platform-admin role required")
+    return user
+
+
+PlatformAdminDep = Annotated[JwtUser, Depends(require_platform_admin)]
 
 
 def apply_config_overrides(

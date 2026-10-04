@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,26 @@ logger = logging.getLogger(__name__)
 
 DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 HOURS_PER_YEAR = sum(d * 24 for d in DAYS_PER_MONTH)  # 8760
+
+
+# A profile is named, never addressed: one path segment, no leading dot (REQ-1307).
+_PROFILE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}")
+
+
+def resolve_profile(profiles_dir: Path, name: str) -> Path:
+    """Return the existing entry ``name`` of ``profiles_dir``, or raise ``ValueError``.
+
+    Every profile a caller can name — ``load_profile``, ``heat_pump_profile``, a
+    meter-data folder — goes through here. The error never carries a path: it is
+    returned to anonymous callers.
+    """
+    if not isinstance(name, str) or not _PROFILE_NAME.fullmatch(name) or ".." in name:
+        raise ValueError("Invalid load profile name")
+    base = profiles_dir.resolve()
+    path = (base / name).resolve()
+    if not path.is_relative_to(base) or not path.exists():
+        raise ValueError(f"Unknown load profile: {name}")
+    return path
 
 
 def load_profile_config(profile_path: Path) -> dict[str, Any]:
@@ -158,7 +179,7 @@ def load_meter_data_profile(folder_path: Path) -> dict[str, Any]:
         ValueError: If no valid data found.
     """
     if not folder_path.is_dir():
-        raise FileNotFoundError(f"Meter data folder not found: {folder_path}")
+        raise FileNotFoundError(f"Meter data folder not found: {folder_path.name}")
 
     # Accumulate hourly totals per month: {month_1based: [sum_h0..sum_h23]}
     monthly_hourly_sums: dict[int, list[float]] = {}
@@ -166,7 +187,7 @@ def load_meter_data_profile(folder_path: Path) -> dict[str, Any]:
 
     json_files = sorted(folder_path.glob("*.json"))
     if not json_files:
-        raise ValueError(f"No JSON files found in {folder_path}")
+        raise ValueError(f"No JSON files found in {folder_path.name}")
 
     for json_file in json_files:
         try:
@@ -198,7 +219,7 @@ def load_meter_data_profile(folder_path: Path) -> dict[str, Any]:
             continue
 
     if not monthly_hourly_sums:
-        raise ValueError(f"No valid meter data found in {folder_path}")
+        raise ValueError(f"No valid meter data found in {folder_path.name}")
 
     # Compute average daily hourly profile (across all months)
     hourly_totals = np.zeros(24)

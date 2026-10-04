@@ -24,6 +24,7 @@ from celine.roi.load_profiles import (
     load_profile_config,
     optimize_coefficients,
     profile_from_manual_hourly,
+    resolve_profile,
 )
 from celine.roi.models import EnergyResult, ProductionData, SystemInput
 
@@ -91,7 +92,7 @@ def _compute_hourly(
         profile_config = profile_from_manual_hourly(system_input.custom_hourly_kwh)
         logger.info("Using manual 24h consumption profile")
     elif system_input.custom_profile_dir is not None:
-        meter_path = _CONFIG_DIR / "load_profiles" / system_input.custom_profile_dir
+        meter_path = resolve_profile(_CONFIG_DIR / "load_profiles", system_input.custom_profile_dir)
         profile_config = load_meter_data_profile(meter_path)
         logger.info("Using meter data profile from %s", system_input.custom_profile_dir)
     else:
@@ -100,13 +101,7 @@ def _compute_hourly(
             system_input.user_type,
             config.get("load_profile", "residential_default.json"),
         )
-        profile_path = _CONFIG_DIR / "load_profiles" / profile_name
-
-        if not profile_path.exists():
-            raise FileNotFoundError(
-                f"Load profile not found: {profile_path}. "
-                "Set 'load_profile' in config or check config directory."
-            )
+        profile_path = resolve_profile(_CONFIG_DIR / "load_profiles", profile_name)
         profile_config = load_profile_config(profile_path)
 
     # Optimize profile: shift consumption toward solar hours
@@ -120,11 +115,7 @@ def _compute_hourly(
 
     if system_input.heat_pump_kwh_annual > 0:
         hp_profile_name = config.get("heat_pump_profile", "heat_pump_component.json")
-        hp_profile_path = _CONFIG_DIR / "load_profiles" / hp_profile_name
-        if not hp_profile_path.exists():
-            raise FileNotFoundError(
-                f"Heat pump component profile not found: {hp_profile_path}"
-            )
+        hp_profile_path = resolve_profile(_CONFIG_DIR / "load_profiles", hp_profile_name)
         hp_profile_config = load_profile_config(hp_profile_path)
         consumption = build_hourly_consumption_with_heat_pump(
             annual_consumption_kwh=system_input.annual_consumption_kwh,
