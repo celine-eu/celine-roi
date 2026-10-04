@@ -243,12 +243,33 @@ screenshot. The screenshot is served separately rather than embedded in list res
 
 ### REQ-1103 — manager review is authorized for the selected REC
 
-Review requires `community.read` plus `admins` or `managers` in the matching REC organization.
-Realm `admins` may review every REC. A participant or a manager of another REC is denied before a
-feedback row or screenshot is read.
+Review requires `community.read` plus `admins` or `managers` in the matching REC organization,
+read from that organization's own groups only (`organization.<alias>.groups`). A group held in
+another organization counts for nothing here. A platform administrator may review every REC
+(REQ-1105). A participant or a manager of another REC is denied before a feedback row or
+screenshot is read.
+
+*Rewritten 2026-10-03:* the platform-wide grant was the realm group `admins`; it is now the
+realm role `platform-admin` (REQ-1105).
 
 *Verified by*
-`tests/test_feedback.py::test_manager_reviews_only_feedback_from_the_authorized_rec`
+`tests/test_feedback.py::test_manager_reviews_only_feedback_from_the_authorized_rec`,
+`tests/test_feedback.py::TestReviewIsGrantedPerOrganizationOrByThePlatformRole`
+
+### REQ-1105 — only the realm role `platform-admin` reviews every REC
+
+The one grant that reaches every REC's feedback is the Keycloak realm role `platform-admin`, read
+from `realm_access.roles`. Nothing else is platform-wide:
+
+- an organization's `admins` group is valid only for that organization's REC;
+- a realm group (`/admins`, `admins` in the top-level `groups` claim) grants nothing;
+- the retired realm roles `admin`, `manager`, `editor` and `viewer` grant nothing.
+
+`community.read` is still required of a platform administrator.
+
+*Verified by*
+`tests/test_feedback.py::TestReviewIsGrantedPerOrganizationOrByThePlatformRole`,
+`tests/test_feedback_real_tokens.py::TestRealTokensFromTheLocalRealm`
 
 ### REQ-1104 — review state advances monotonically
 

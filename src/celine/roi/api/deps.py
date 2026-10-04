@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 import jwt as pyjwt
-from celine.sdk.auth import JwtUser
-from celine.sdk.auth.jwt import organization_groups, realm_groups
+from celine.sdk.auth import JwtUser, is_platform_admin, organization_groups
 from fastapi import Depends, HTTPException, Request
 
 from celine.roi.api.schemas import ConfigOverrides
@@ -60,7 +59,9 @@ def require_rec_manager(user: JwtUser, community_key: str) -> None:
     scopes = set(raw_scope.split() if isinstance(raw_scope, str) else raw_scope)
     if "community.read" not in scopes:
         raise HTTPException(status_code=403, detail="Missing community.read scope")
-    if "admins" in _names(realm_groups(claims)):
+    # Platform-wide review is the realm role only (REQ-1105). A realm group in the
+    # token grants nothing, and an organisation's groups count only for that REC.
+    if is_platform_admin(claims):
         return
     organization = user.get_organization(community_key)
     groups = _names(organization_groups(claims, community_key))

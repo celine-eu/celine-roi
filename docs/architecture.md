@@ -88,6 +88,7 @@ return 503 when persistence is explicitly disabled.
 The feedback row stores its REC key as a first-class column. The browser may choose only one of the
 REC organizations in its verified token. Reading screenshots and advancing an item from `new` to
 `seen` to `resolved` additionally requires `community.read` and either a matching REC
-`admins`/`managers` organization group or the realm `admins` group. `celine-community` repeats its
+`admins`/`managers` group of that same REC organization, or the realm role `platform-admin` (REQ-1105).
+A realm group grants nothing. `celine-community` repeats its
 own REC authorization before proxying these manager operations; neither service reads the other's
 database.

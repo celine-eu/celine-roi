@@ -168,3 +168,146 @@ def test_manager_reviews_only_feedback_from_the_authorized_rec(client, monkeypat
     assert resolved.json()["status"] == "resolved"
     assert backward.status_code == 409
     assert denied.status_code == 403
+
+
+def _user_from_claims(claims: dict) -> JwtUser:
+    """A JwtUser built the way `JwtUser.from_token` builds one, without a signature."""
+    orgs = claims.get("organization") or {}
+    return JwtUser(
+        sub=claims.get("sub", "roi-review-user"),
+        organizations=[Organization._from_claim(alias, value) for alias, value in orgs.items()],
+        claims=claims,
+    )
+
+
+def _claims(
+    *,
+    roles: list[str] | None = None,
+    groups: list[str] | None = None,
+    organization: dict | None = None,
+    scope: str = "community.read",
+    **extra,
+) -> dict:
+    claims: dict = {"sub": "roi-review-user", "azp": "oauth2_proxy", "scope": scope, **extra}
+    if roles is not None:
+        claims["realm_access"] = {"roles": roles}
+    if groups is not None:
+        claims["groups"] = groups
+    if organization is not None:
+        claims["organization"] = organization
+    return claims
+
+
+OTHER_REC = "another-rec"
+DEFAULT_ROLES = ["default-roles-celine", "offline_access", "uma_authorization"]
+# The access-token shapes measured on the local realm (celine-dev token kit).
+PLATFORM_ADMIN = _claims(roles=["platform-admin"])
+ORG_ADMIN = _claims(
+    roles=DEFAULT_ROLES,
+    organization={COMMUNITY_KEY: {"type": ["rec"], "groups": ["/admins"]}},
+)
+# The retired shape: realm group /admins in both forms, realm role `admin`, and an
+# organisation admins membership in a different organisation.
+LEGACY_REALM_ADMIN = _claims(
+    roles=["admin"],
+    groups=["/admins", "admins"],
+    organization={"example-dso": {"type": ["dso"], "groups": ["/admins"]}},
+)
+
+
+class TestReviewIsGrantedPerOrganizationOrByThePlatformRole:
+    """Only the realm role `platform-admin` is platform-wide; organisation groups count
+    only for their own REC; a realm group or a retired realm role grants nothing.
+
+    @verifies REQ-1103 REQ-1105
+    """
+
+    @staticmethod
+    def _allowed(claims: dict, community_key: str) -> bool:
+        from fastapi import HTTPException
+
+        from celine.roi.api.deps import require_rec_manager
+
+        try:
+            require_rec_manager(_user_from_claims(claims), community_key)
+        except HTTPException as exc:
+            assert exc.status_code == 403
+            return False
+        return True
+
+    def test_the_platform_admin_role_reviews_every_rec(self) -> None:
+        assert self._allowed(PLATFORM_ADMIN, COMMUNITY_KEY)
+        assert self._allowed(PLATFORM_ADMIN, OTHER_REC)
+
+    def test_the_platform_admin_role_still_needs_community_read(self) -> None:
+        assert not self._allowed(_claims(roles=["platform-admin"], scope="openid"), OTHER_REC)
+
+    def test_an_organisation_admin_reviews_only_its_own_rec(self) -> None:
+        assert self._allowed(ORG_ADMIN, COMMUNITY_KEY)
+        assert not self._allowed(ORG_ADMIN, OTHER_REC)
+
+    def test_an_organisation_admin_is_not_a_platform_admin(self) -> None:
+        many = _claims(
+            roles=DEFAULT_ROLES,
+            organization={
+                COMMUNITY_KEY: {"type": ["rec"], "groups": ["/admins"]},
+                "example_dso": {"type": ["dso"], "groups": ["/admins"]},
+            },
+        )
+        assert not self._allowed(many, OTHER_REC)
+        # admins of a DSO organisation do not make its alias a reviewable REC either
+        assert not self._allowed(many, "example_dso")
+
+    def test_a_legacy_realm_group_grants_nothing(self) -> None:
+        assert not self._allowed(LEGACY_REALM_ADMIN, COMMUNITY_KEY)
+        assert not self._allowed(LEGACY_REALM_ADMIN, OTHER_REC)
+        assert not self._allowed(_claims(groups=["/admins", "admins"]), COMMUNITY_KEY)
+
+    @pytest.mark.parametrize("role", ["admin", "admins", "manager", "editor", "viewer"])
+    def test_a_retired_realm_role_grants_nothing(self, role: str) -> None:
+        assert not self._allowed(_claims(roles=[role]), COMMUNITY_KEY)
+
+    @pytest.mark.parametrize(
+        "claims",
+        [
+            pytest.param(_claims(groups=["platform-admin", "/platform-admin"]), id="groups"),
+            pytest.param({**_claims(), "roles": ["platform-admin"]}, id="top-roles"),
+            pytest.param(
+                _claims(resource_access={"oauth2_proxy": {"roles": ["platform-admin"]}}),
+                id="client-role",
+            ),
+            pytest.param(
+                _claims(organization={OTHER_REC: {"type": ["rec"], "groups": ["/platform-admin"]}}),
+                id="org-group",
+            ),
+        ],
+    )
+    def test_platform_admin_counts_only_as_a_realm_role(self, claims: dict) -> None:
+        assert not self._allowed(claims, COMMUNITY_KEY)
+
+    def test_the_route_applies_the_same_rule(self, client, monkeypatch) -> None:
+        test_client, app = client
+
+        async def fake_list(pool, community_key, **kwargs):
+            return {
+                "community_key": community_key,
+                "page": kwargs["page"],
+                "page_size": kwargs["page_size"],
+                "total": 0,
+                "counts": {"new": 0, "seen": 0, "resolved": 0},
+                "items": [],
+            }
+
+        import celine.roi.api.routes.feedback as feedback_routes
+
+        monkeypatch.setattr(feedback_routes, "get_pool", lambda: object())
+        monkeypatch.setattr(feedback_routes, "list_feedback", fake_list)
+
+        def status(claims: dict, community_key: str) -> int:
+            app.dependency_overrides[get_user_from_request] = lambda: _user_from_claims(claims)
+            return test_client.get(f"/api/v1/feedback/manager/{community_key}").status_code
+
+        assert status(PLATFORM_ADMIN, OTHER_REC) == 200
+        assert status(ORG_ADMIN, COMMUNITY_KEY) == 200
+        assert status(ORG_ADMIN, OTHER_REC) == 403
+        assert status(LEGACY_REALM_ADMIN, COMMUNITY_KEY) == 403
