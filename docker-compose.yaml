@@ -32,6 +32,10 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      # No development default: unset is hardened (celine.sdk.posture).
+      # celine-dev's docker tasks export CELINE_ENV=dev for the local stack.
+      CELINE_ENV: ${CELINE_ENV:-}
     ports:
       - "8018:8000"
     extra_hosts:
