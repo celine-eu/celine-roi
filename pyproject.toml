@@ -22,7 +22,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.13",
     # TODO: raise to the celine-sdk release that ships `celine.sdk.posture.docs_urls`.
-    "celine-sdk>=1.20.0",
+    "celine-sdk>=2.0.0",
     "pydantic-settings>=2.0",
     "psycopg2-binary>=2.9.12",
 ]
