@@ -63,7 +63,7 @@ Outside `CELINE_ENV=dev` — including when it is unset — the service refuses 
 SDK's local default, or `FORWARDED_ALLOW_IPS` contains `*`, and lists every such setting
 at once (REQ-1201). `CELINE_ENV=staging
 task run` is the prod-like mode of the local runner. The check uses `celine.sdk.posture`,
-which needs the celine-sdk release after 1.24.0.
+first released in celine-sdk 2.0.0.
 
 ### Public by design
 

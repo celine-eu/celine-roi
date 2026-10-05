@@ -16,8 +16,6 @@ is accepted everywhere.
 
 from __future__ import annotations
 
-# `celine.sdk.posture` lands in the celine-sdk release after 1.24.0.
-# TODO: raise the `celine-sdk` floor in pyproject.toml once that release is out.
 from celine.sdk.posture import PostureGuard
 
 from celine.roi.settings import Settings
