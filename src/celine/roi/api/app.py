@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from celine.sdk.posture import docs_urls
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -116,6 +117,9 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
         ),
         version="0.1.0",
         lifespan=lifespan,
+        # Outside CELINE_ENV=dev none of /docs, /redoc, /openapi.json is mounted
+        # unless CELINE_PUBLIC_DOCS=true (REQ-1201).
+        **docs_urls(),
     )
     app.state.config_dir = str(config_dir)
     app.add_middleware(

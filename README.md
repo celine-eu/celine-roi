@@ -19,7 +19,7 @@ The UI lives in [celine-frontend](https://github.com/celine-eu/celine-frontend) 
 
 ## API
 
-All endpoints are under `/api/v1`. Interactive docs at `/docs`.
+All endpoints are under `/api/v1`. Interactive docs at `/docs` (in `CELINE_ENV=dev`, or with `CELINE_PUBLIC_DOCS=true`).
 
 | Endpoint | Method | Description |
 |---|---|---|

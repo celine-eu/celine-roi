@@ -303,8 +303,11 @@ no password and is accepted everywhere. `task run` exports `CELINE_ENV=dev` unle
 already set.
 
 This check is about configuration only. Which routes require a token is not changed by it.
+On the same signal, `/docs`, `/redoc` and `/openapi.json` are not mounted outside dev (`404`)
+unless `CELINE_PUBLIC_DOCS=true`.
 
-*Verified by* `tests/test_posture.py::TestOnlyDevAcceptsDevelopmentDefaults`
+*Verified by* `tests/test_posture.py::TestOnlyDevAcceptsDevelopmentDefaults`,
+`tests/test_api_docs.py`
 
 ---
 
