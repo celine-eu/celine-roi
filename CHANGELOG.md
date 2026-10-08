@@ -2,6 +2,12 @@
 
 <!-- version list -->
 
+## v1.10.5 (2026-10-08)
+
+### Bug Fixes
+
+- Add unauthenticated /health for probes
+
 ## v1.10.4 (2026-10-08)
 
 ### Bug Fixes

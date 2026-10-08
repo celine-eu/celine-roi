@@ -130,6 +130,12 @@ def create_app(config_dir: str | Path = "config") -> FastAPI:
         feedback_max_body=settings.max_body_bytes_feedback,
     )
 
+    # The probe target (REQ-1202): no token, and nothing behind it — a database
+    # outage must not become a liveness restart.
+    @app.get("/health", tags=["ops"])
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     prefix = "/api/v1"
     app.include_router(production.router, prefix=prefix, tags=["production"])
     app.include_router(energy.router, prefix=prefix, tags=["energy"])

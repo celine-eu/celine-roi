@@ -309,6 +309,16 @@ unless `CELINE_PUBLIC_DOCS=true`.
 *Verified by* `tests/test_posture.py::TestOnlyDevAcceptsDevelopmentDefaults`,
 `tests/test_api_docs.py`
 
+### REQ-1202 — `GET /health` answers the probes in every environment
+
+`GET /health`, at the root and outside `/api/v1`, returns **200** `{"status": "ok"}`
+with no token, in every environment, whether or not the docs are mounted (REQ-1201). It
+reads no configuration and no database, so a database outage does not fail the liveness
+probe, and it is not counted against any per-address budget (REQ-1302). The deployment's
+liveness and readiness probes call it.
+
+*Verified by* `tests/test_health.py::TestHealthAnswersTheProbe`
+
 ---
 
 ## REQ-13xx — the public surface

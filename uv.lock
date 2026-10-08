@@ -185,7 +185,7 @@ wheels = [
 
 [[package]]
 name = "celine-roi"
-version = "1.10.4"
+version = "1.10.5"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
