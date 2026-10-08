@@ -2,6 +2,34 @@
 
 <!-- version list -->
 
+## v1.10.4 (2026-10-08)
+
+### Bug Fixes
+
+- Harden public api request handling
+  ([`be7ac12`](https://github.com/celine-eu/celine-roi/commit/be7ac122b00971e41fc0dc09338faf804f09329f))
+
+- Serve api docs only in dev unless CELINE_PUBLIC_DOCS is set
+  ([`1685af2`](https://github.com/celine-eu/celine-roi/commit/1685af26b756d7034f1f04a0c369ef9239132759))
+
+### Chores
+
+- Add missing LICENSE
+  ([`cf80cac`](https://github.com/celine-eu/celine-roi/commit/cf80cace91c6e619f38bf79ad2f931cf4cc48c37))
+
+- Add tests, update harness, review API response codes
+  ([`22cea49`](https://github.com/celine-eu/celine-roi/commit/22cea49fd282683dffd0b9dae09ff1ca53796c7a))
+
+- Drop the celine-sdk release TODOs now that 2.0.0 ships them
+  ([`bc8552a`](https://github.com/celine-eu/celine-roi/commit/bc8552a2cc113f06e26c1e69845887eb06c63e16))
+
+- Fix workflow
+  ([`9e4f395`](https://github.com/celine-eu/celine-roi/commit/9e4f3956d7fcba6915a56a44ceb5c0a193fad718))
+
+- Upgrade celine-sdk to 2.0.0
+  ([`3d6bf5f`](https://github.com/celine-eu/celine-roi/commit/3d6bf5f56ab179119afc1afa9c8fe0331c8bfd1d))
+
+
 ## v1.10.3 (2026-05-12)
 
 ### Bug Fixes
